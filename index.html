@@ -1209,29 +1209,89 @@ function animateJet(j, pitch, roll, yaw, brake, flapAmt, throttle, dt, t, g) {
   for (const v of u.vapor) v.visible = VAPOR_MAT.opacity > .01 && j === player.mesh;
 }
 
-function makeSAM(mat) {
+// ---- ground unit models: real-world references (Patriot-type SAM, Tunguska-type SPAAG, phased-array radar, fuel farm) ----
+const GM = (() => { const m = (c, r = .8, me = .2) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: me });
+  return { olive: m(0x56603f), olive2: m(0x454c33), sand: m(0x8c7f5e), dark: m(0x2a2d2b, .75, .35), steel: m(0x70777c, .5, .7), rubber: m(0x151515, .95, 0), glass: m(0x17262e, .15, .85), white: m(0xdcdcd6, .6, .1),
+    rust: m(0x7a4a2e, .9, .2), red: m(0xa83a2a, .7, .1), conc: m(0x8f8f88, .92, .05), pale: m(0xb6b8b2, .65, .2), lamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(5, .5, .3) }), lampW: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.3, 2) }) }; })();
+const gbx = (g, m, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); if (rx || ry || rz) o.rotation.set(rx, ry, rz); g.add(o); return o; };
+const gcy = (g, m, rt, rb, h, x, y, z, seg = 12, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m); o.position.set(x, y, z); if (rx || ry || rz) o.rotation.set(rx, ry, rz); g.add(o); return o; };
+const gShadow = g => { g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return g; };
+function makeSAM() { // 8x8 launcher truck with 4 raised canisters, plus a phased-array radar trailer
   const g = new THREE.Group();
-  const b = new THREE.Mesh(new THREE.CylinderGeometry(9, 10, 2, 14), mat.base); b.position.y = 1; g.add(b);
-  const t = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 7), mat.main); t.position.y = 3.5; g.add(t);
-  const l = new THREE.Group(); l.position.y = 5; l.rotation.x = -0.65; g.add(l);
-  for (let i = 0; i < 4; i++) { const tube = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 10), mat.main); tube.position.set((i % 2 - .5) * 1.7, (i < 2 ? 0 : 1.6), -1); l.add(tube); }
-  return g;
+  gbx(g, GM.dark, 2.7, .5, 10.4, 0, .95, .6); gbx(g, GM.olive, 3.1, .9, 10.6, 0, 1.55, .6);
+  for (const z of [-3.4, -1.4, 1.9, 4.0]) for (const sx of [-1, 1]) { gcy(g, GM.rubber, .68, .68, .55, sx * 1.62, .68, z, 14, 0, 0, Math.PI / 2); gcy(g, GM.steel, .28, .28, .6, sx * 1.62, .68, z, 8, 0, 0, Math.PI / 2); }
+  gbx(g, GM.olive, 3.0, 2.3, 2.9, 0, 3.0, -4.3); gbx(g, GM.glass, 2.6, 1.05, .12, 0, 3.4, -5.78, -.25); gbx(g, GM.olive, 2.9, 1.1, 1.9, 0, 1.95, -5.9);
+  gbx(g, GM.dark, .5, .28, .12, 0, 1.55, -6.88); gbx(g, GM.lampW, .3, .2, .1, -1.1, 1.9, -6.88); gbx(g, GM.lampW, .3, .2, .1, 1.1, 1.9, -6.88);
+  for (const sx of [-1, 1]) { gbx(g, GM.dark, .18, 1.0, .6, sx * 1.75, 3.5, -4.9); gbx(g, GM.olive2, .35, 1.6, 2.4, sx * 1.8, 1.9, 2.4); } // mirrors, side lockers
+  gbx(g, GM.olive2, 2.6, .7, 3.4, 0, 2.3, 4.6);
+  const L = new THREE.Group(); L.position.set(0, 2.9, 2.8); L.rotation.x = .92; g.add(L);
+  gbx(L, GM.dark, 3.2, .22, 7.4, 0, -.18, -.4); gbx(L, GM.steel, 2.6, .3, 1.4, 0, -.4, 3.0);
+  for (const [cx, cy] of [[-.82, .45], [.82, .45], [-.82, 1.65], [.82, 1.65]]) { gbx(L, GM.olive, 1.15, 1.05, 7.0, cx, cy, -.5); gbx(L, GM.dark, 1.0, .9, .14, cx, cy, -4.05); gbx(L, GM.rust, 1.2, .1, 6.7, cx, cy + .55, -.5); gbx(L, GM.sand, .3, .3, .06, cx, cy, -4.14); }
+  for (const sx of [-1, 1]) for (const z of [-4.6, 4.6]) { gcy(g, GM.steel, .22, .26, 1.7, sx * 2.0, .75, z, 8); gbx(g, GM.dark, .8, .12, .8, sx * 2.0, .12, z); } // outriggers
+  // radar trailer
+  const R = new THREE.Group(); R.position.set(11.5, 0, 2); g.add(R);
+  gbx(R, GM.dark, 3.2, .5, 8.6, 0, .95, 0); gbx(R, GM.olive, 3.4, 2.4, 8.2, 0, 2.4, 0); for (const z of [-2.4, 2.4]) for (const sx of [-1, 1]) { gcy(R, GM.rubber, .7, .7, .5, sx * 1.65, .7, z, 12, 0, 0, Math.PI / 2); }
+  gbx(R, GM.olive2, 2.6, 1, 2.4, 0, 4.1, -2.3); const arr = new THREE.Group(); arr.position.set(0, 5.4, 1.6); arr.rotation.x = -.4; R.add(arr);
+  gbx(arr, GM.pale, 4.8, 4.8, .45, 0, 2.3, 0); for (let i = 0; i < 6; i++) gbx(arr, GM.dark, 4.6, .06, .5, 0, .5 + i * .76, 0); gbx(arr, GM.dark, .12, 4.6, .5, 0, 2.3, 0); gcy(arr, GM.steel, .22, .22, 2.4, 0, -.4, -.3, 8);
+  gbx(R, GM.olive2, 1.2, 1.4, 2, 6.6 - 11.5 + 11.5, 1.0, -3.2); gcy(R, GM.dark, .12, .12, 6, -2.2, 6, 3.2, 5); // generator, whip antenna
+  gcy(g, GM.dark, .12, .12, 5, 1.2, 5.5, 5.2, 5);
+  return gShadow(g);
 }
-function makeRadar(mat) {
+function makeAAMesh() { // tracked self-propelled AA gun/missile system (Tunguska type)
   const g = new THREE.Group();
-  const b = new THREE.Mesh(new THREE.BoxGeometry(16, 9, 12), mat.main); b.position.y = 4.5; g.add(b);
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.8, 1, 14, 8), mat.base); mast.position.y = 16; g.add(mast);
-  const dish = new THREE.Group(); dish.position.y = 23; g.add(dish);
-  const d = new THREE.Mesh(new THREE.BoxGeometry(18, 6, 1), mat.white); d.rotation.x = .25; dish.add(d);
-  const beacon = new THREE.Mesh(new THREE.SphereGeometry(.6, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, .5, .3) })); beacon.position.y = 26.5; g.add(beacon);
-  g.userData.dish = dish; return g;
+  gbx(g, GM.olive, 3.4, 1.35, 6.8, 0, 1.55, 0); gbx(g, GM.olive2, 3.0, .55, 2.0, 0, 1.25, -3.9, .45); gbx(g, GM.olive2, 3.0, .5, 1.6, 0, 1.5, 3.7, -.3);
+  for (const sx of [-1, 1]) { gbx(g, GM.dark, .85, 1.0, 7.6, sx * 1.95, .72, 0); gbx(g, GM.rubber, .9, .25, 7.8, sx * 1.95, .12, 0); for (let i = 0; i < 6; i++) gcy(g, GM.steel, .46, .46, .95, sx * 1.95, .6, -3.1 + i * 1.25, 10, 0, 0, Math.PI / 2); gbx(g, GM.olive, .2, .45, 7.4, sx * 2.45, 1.4, 0); }
+  const T = new THREE.Group(); T.position.set(0, 2.6, .2); g.add(T);
+  gbx(T, GM.olive, 3.0, 1.5, 3.2, 0, .8, 0); gbx(T, GM.olive2, 2.4, .5, 2.4, 0, 1.75, .2);
+  for (const sx of [-1, 1]) { gbx(T, GM.dark, .55, .7, 1.5, sx * 1.65, .8, .2); gcy(T, GM.steel, .13, .15, 3.6, sx * 1.6, 1.05, -2.0, 8, Math.PI / 2); gcy(T, GM.dark, .2, .2, .5, sx * 1.6, 1.05, -3.7, 8, Math.PI / 2);
+    for (let k = 0; k < 2; k++) gbx(T, GM.rust, .32, .32, 2.2, sx * 2.0, .6 + k * .5 + 1.1, -.4); } // missile tubes
+  gcy(T, GM.dark, .1, .1, 1.4, -.8, 2.8, 1.0, 6); gbx(T, GM.glass, .9, .35, .12, 0, 1.1, -1.62);
+  const dish = new THREE.Group(); dish.position.set(0, 2.9, 1.0); T.add(dish); gcy(dish, GM.steel, .1, .1, .9, 0, .2, 0, 6); const d = gbx(dish, GM.pale, 2.0, .9, .15, 0, .85, 0, -.2); gbx(dish, GM.dark, .15, .3, .5, 0, .6, -.1);
+  g.userData.dish = dish; for (let i = 0; i < 4; i++) gbx(g, GM.lampW, .18, .12, .1, (i % 2 ? 1 : -1) * 1.1, 1.8, -4.4);
+  return gShadow(g);
 }
-function makeTanks(mat) {
+function makeRadar() { // long-range early-warning radar: rotating dish on a lattice tower, radome, ops building, generators
   const g = new THREE.Group();
-  [[-11, 0], [11, 0], [0, 15]].forEach(([x, z]) => { const c = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 11, 18), mat.white); c.position.set(x, 5.5, z); g.add(c); });
-  return g;
+  gbx(g, GM.conc, 20, .6, 16, 0, .3, 0); gbx(g, GM.pale, 16, 7, 11, -2, 4.1, -1.5); gbx(g, GM.conc, 16.6, .7, 11.6, -2, 7.9, -1.5);
+  for (let i = 0; i < 5; i++) gbx(g, GM.glass, 1.1, 1.1, .1, -8.4 + i * 3.2, 5, 4.05); gbx(g, GM.dark, 2, 3.4, .12, 3.4, 2.6, 4.06);
+  gbx(g, GM.dark, 2.4, 1.6, 2, -6, 9, -4); gbx(g, GM.dark, 2.4, 1.6, 2, -1, 9, -4); gcy(g, GM.steel, .3, .3, 2.6, 4.4, 9.4, -5, 8);
+  gbx(g, GM.olive2, 3.4, 2.6, 6.5, 8.8, 1.9, 3); gcy(g, GM.dark, .18, .18, 3, 9.8, 4.2, 5.4, 6); gbx(g, GM.rust, 1.6, 1.1, 1.1, 8.6, .85, -4.2); gcy(g, GM.rust, .6, .6, 1.1, 10.6, .65, -4.2, 10); gcy(g, GM.rust, .6, .6, 1.1, 8.0, .65, -6.2, 10);
+  // tower + dish
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) gcy(g, GM.steel, .22, .32, 22, 12 + x * 1.6, 11.5, -6.5 + z * 1.6, 5);
+  for (let i = 0; i < 5; i++) { gbx(g, GM.steel, 3.4, .14, .14, 12, 2.5 + i * 4.4, -6.5 - 1.6); gbx(g, GM.steel, 3.4, .14, .14, 12, 2.5 + i * 4.4, -6.5 + 1.6); gbx(g, GM.steel, .14, .14, 3.4, 10.4, 2.5 + i * 4.4, -6.5); gbx(g, GM.steel, .14, .14, 3.4, 13.6, 2.5 + i * 4.4, -6.5); }
+  gbx(g, GM.dark, 4.6, .8, 4.6, 12, 23.4, -6.5);
+  const dish = new THREE.Group(); dish.position.set(12, 25.2, -6.5); g.add(dish);
+  const pm = new THREE.MeshStandardMaterial({ color: 0xd9dad4, roughness: .5, metalness: .25, side: THREE.DoubleSide }), bowl = new THREE.Mesh(new THREE.SphereGeometry(11, 36, 12, 0, Math.PI * 2, 0, .95), pm);
+  bowl.scale.set(1, .42, 1); bowl.rotation.x = -Math.PI / 2 + .35; bowl.position.set(0, 3.2, 0); dish.add(bowl);
+  gbx(dish, GM.steel, .5, .5, 4.4, 0, 3.4, 3.2, -.35); gbx(dish, GM.dark, 1.2, .7, .8, 0, 3.6, 6.5, -.35);
+  gcy(dish, GM.steel, .9, 1.4, 3.4, 0, .6, -.2, 10);
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(.6, 6, 4), GM.lamp); beacon.position.set(12, 29.6, -6.5); g.add(beacon);
+  for (let i = 0; i < 14; i++) gbx(g, GM.steel, .15, 2.2, .15, -10 + i * 3.1, 1.4, 8.4); gbx(g, GM.steel, 40, .12, .12, 0, 2.4, 8.4).visible = false;
+  g.userData.dish = dish; return gShadow(g);
 }
-
+function makeTanks() { // fuel farm: floating-roof tanks, stairs, pipe rack, bund wall, pump house
+  const g = new THREE.Group(), tm = GM.pale;
+  gbx(g, GM.conc, 44, .5, 38, 0, .25, 0);
+  for (const [x, z] of [[-10, -8], [10, -8], [-10, 11], [10, 11]]) {
+    gcy(g, tm, 8.2, 8.2, 12, x, 6.5, z, 28); gcy(g, GM.dark, 8.45, 8.45, .6, x, 12.7, z, 28); gcy(g, GM.pale, 7.4, 7.4, .4, x, 12.2, z, 28); gcy(g, GM.red, 8.3, 8.3, 1.1, x, 1.6, z, 28);
+    const st = gbx(g, GM.steel, .6, 15, .25, x + 8.5, 6.2, z, 0, 0, -.42); st.position.set(x + 8.7, 6.4, z); gcy(g, GM.steel, .3, .3, 1.1, x - 4, 13.4, z + 2, 6);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(8.3, .14, 5, 28), GM.steel); ring.rotation.x = Math.PI / 2; ring.position.set(x, 8.2, z); g.add(ring); }
+  gbx(g, GM.steel, .35, .35, 28, -.5, 4, 1, 0, 0, 0); gbx(g, GM.steel, 24, .35, .35, 0, 4.4, 1); gbx(g, GM.steel, 14, .3, .3, 0, 13.6, -8); gbx(g, GM.steel, 14, .3, .3, 0, 13.6, 11);
+  for (const [w, d, x, z] of [[44, .9, 0, -19.4], [44, .9, 0, 19.4], [.9, 38, -22, 0], [.9, 38, 22, 0]]) gbx(g, GM.conc, w, 1.6, d, x, 1, z);
+  gbx(g, GM.olive2, 5, 3.4, 4, 17, 2.2, -14.6); gbx(g, GM.dark, 5.4, .4, 4.4, 17, 4.1, -14.6); gcy(g, GM.rust, .8, .8, 1.5, 12, 1.2, 16, 10);
+  return gShadow(g);
+}
+function makeHangarMesh() { // hardened aircraft shelter: concrete arch, earth berms, steel blast door, apron slab
+  const g = new THREE.Group(), conc = new THREE.MeshStandardMaterial({ color: 0x8a8a82, roughness: .9 }), earth = new THREE.MeshStandardMaterial({ color: 0x5d6a45, roughness: 1 });
+  const geo = new THREE.CylinderGeometry(14, 14, 46, 24, 1, false, 0, Math.PI); geo.rotateZ(Math.PI / 2); geo.rotateY(Math.PI / 2);
+  const arch = new THREE.Mesh(geo, conc); g.add(arch);
+  for (let i = 0; i < 6; i++) { const rib = new THREE.Mesh(new THREE.TorusGeometry(14.3, .55, 6, 24, Math.PI), conc); rib.position.z = -20 + i * 8; rib.rotation.z = 0; g.add(rib); }
+  const berm = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), earth); berm.scale.set(24, 11, 30); berm.position.set(0, -1, 8); g.add(berm);
+  gbx(g, GM.dark, 21, 11.5, .9, 0, 5.8, -23.2); for (const sx of [-1, 1]) { gbx(g, GM.steel, 10, 11, .5, sx * 5.2, 5.7, -23.7); for (let i = 0; i < 4; i++) gbx(g, GM.dark, 9.6, .25, .55, sx * 5.2, 2 + i * 2.6, -23.8); }
+  gbx(g, GM.red, 21, .7, .6, 0, 11.8, -23.8); gbx(g, GM.conc, 24, .4, 22, 0, .2, -34); gbx(g, GM.conc, 26, 3, 2, 0, 12.4, -22.6);
+  gcy(g, GM.steel, .5, .5, 3.4, 8, 15, 4, 8); gcy(g, GM.dark, .18, .18, 5, -9, 4, -26, 5); gbx(g, GM.lampW, .6, .4, .5, -9, 6.6, -26);
+  return gShadow(g);
+}
 /* ================= particles ================= */
 class Particles {
   constructor(max, blending, gain = 1) {
@@ -1791,7 +1851,7 @@ function placeGround() {
   }
   for (let tries = 0; tries < 20000 && spots.length < types.length; tries++) { const x = rand(-12000, 12000), z = rand(-12000, 12000), h = groundAt(x, z); if (h > 15) spots.push([x, z, h]); }
   spots.forEach((s, i) => {
-    const type = types[i]; const mesh = type === 'SAM' ? makeSAM(groundMat) : type === 'RADAR' ? makeRadar(groundMat) : makeTanks(groundMat);
+    const type = types[i]; const mesh = type === 'SAM' ? makeSAM() : type === 'RADAR' ? makeRadar() : makeTanks();
     mesh.scale.setScalar(1.4); mesh.position.set(s[0], s[2] - 1, s[1]); mesh.rotation.y = rand(0, 6.28); scene.add(mesh);
     grounds.push({ kind: 'ground', type, label: type, mesh, pos: new V3(s[0], s[2] + 6, s[1]), vel: new V3(), alive: true, hp: 100, radius: 26,
       score: type === 'SAM' ? 800 : type === 'RADAR' ? 600 : 400, cd: rand(4, 9), smokeT: 0, wreck: false });
@@ -1840,8 +1900,8 @@ function segPointDist(a, b, p) {
   _v4.subVectors(b, a); const l2 = _v4.lengthSq(); let t = l2 > 0 ? _v5.subVectors(p, a).dot(_v4) / l2 : 0; t = clamp(t, 0, 1);
   return _v5.copy(a).addScaledVector(_v4, t).distanceTo(p);
 }
-function shockwave(p, size, dur = .55, col) {
-  const w = waves.find(x => !x.mesh.visible) || waves[0];
+function shockwave(p, size, dur = .55, col, flat = false) {
+  const w = waves.find(x => !x.mesh.visible) || waves[0]; w.flat = flat; if (flat) w.mesh.rotation.set(-Math.PI / 2, 0, 0);
   w.mesh.position.copy(p); w.t = 0; w.dur = dur; w.size = size; w.mesh.visible = true; w.mesh.scale.setScalar(1);
   w.mesh.material.color.copy(col || new THREE.Color(2.2, 1.3, .6));
 }
@@ -1852,20 +1912,38 @@ function spawnDebris(p, baseVel, n) {
     d.spin.set(rand(-8, 8), rand(-8, 8), rand(-8, 8)); d.burn = Math.random() < .7; }
 }
 function explode(p, scale = 1, light = true) {
-  const nf = Math.round(46 * scale), ns = Math.round(28 * scale);
-  for (let i = 0; i < nf; i++) { _v1.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); const s = rand(8, 60) * scale;
-    fire.emit(p.x, p.y, p.z, _v1.x * s, _v1.y * s, _v1.z * s, rand(.45, 1.2), 7 * scale, rand(24, 42) * scale, 1, .86, .45, .85, .18, .03, 1, 2.2); }
-  for (let i = 0; i < 10 * scale; i++) { _v1.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize(); const s = rand(120, 260);
-    fire.emit(p.x, p.y, p.z, _v1.x * s, _v1.y * s, _v1.z * s, rand(.3, .7), 1.6, .6, 1, .9, .6, 1, .5, .1, 1, 1.5); }
-  for (let i = 0; i < ns; i++) { _v1.set(rand(-1, 1), rand(-.6, 1), rand(-1, 1)).normalize(); const s = rand(5, 28) * scale;
-    const c = rand(.18, .3); smoke.emit(p.x, p.y, p.z, _v1.x * s, _v1.y * s + 4, _v1.z * s, rand(2.5, 5), 12 * scale, rand(50, 85) * scale, c, c * .95, c * .9, .5, .5, .5, .75, .9); }
-  shockwave(p, 55 * scale, .5);
-  if (p.y < 40 && groundAt(p.x, p.z) < 0) waterSplash(p, Math.min(scale, 2) * clamp(1.4 - p.y / 40, .4, 1.4));
-  if (light) { flash.position.copy(p); flash.intensity = 7 * scale; }
+  const S = scale, big = S >= 1.2, gh = floorAt(p.x, p.z), low = p.y - Math.max(gh, 0) < 90 + S * 30, water = groundAt(p.x, p.z) < 0;
+  // 1. white-hot core: a few fat, very short blobs
+  for (let i = 0; i < 4; i++) fire.emit(p.x + rand(-2, 2) * S, p.y + rand(-1, 2) * S, p.z + rand(-2, 2) * S, rand(-6, 6), rand(0, 8), rand(-6, 6), rand(.08, .16), 8 * S, 20 * S, 1, .95, .75, 1, .6, .25, .8, 4);
+  // 2. billowing fireball: slow, buoyant, cooling from yellow to deep red
+  const nf = Math.round(40 * S + 10);
+  for (let i = 0; i < nf; i++) { _v1.set(rand(-1, 1), rand(-.5, 1), rand(-1, 1)).normalize(); const sp = rand(8, 52) * Math.sqrt(S), up = rand(4, 22) * Math.sqrt(S);
+    fire.emit(p.x, p.y, p.z, _v1.x * sp, _v1.y * sp + up, _v1.z * sp, rand(.5, 1.5) * (.8 + S * .15), 6 * S, rand(18, 38) * S, 1, rand(.6, .8), rand(.2, .35), .75, rand(.1, .24), .02, 1, 2.6, -3); }
+  // 3. flying sparks / embers (fall with gravity, leave short trails)
+  for (let i = 0; i < 10 + 14 * S; i++) { _v1.set(rand(-1, 1), rand(-.3, 1), rand(-1, 1)).normalize(); const sp = rand(90, 300) * Math.sqrt(S);
+    fire.emit(p.x, p.y, p.z, _v1.x * sp, _v1.y * sp, _v1.z * sp, rand(.5, 1.6), 1.5, .5, 1, .85, .5, 1, .35, .08, 1, .6, 38); }
+  // 4. smoke: dark, long-lived; a column that keeps rising for big blasts
+  const ns = Math.round(22 * S + 8);
+  for (let i = 0; i < ns; i++) { _v1.set(rand(-1, 1), rand(-.3, 1), rand(-1, 1)).normalize(); const sp = rand(4, 22) * Math.sqrt(S), c = rand(.07, .2);
+    smoke.emit(p.x, p.y, p.z, _v1.x * sp, _v1.y * sp + rand(8, 22), _v1.z * sp, rand(3.5, 7) * (.8 + S * .2), 10 * S, rand(55, 100) * S, c, c * .95, c * .9, .5, .5, .5, .82, .9, -1.5); }
+  if (big) for (let i = 0; i < 16 * S; i++) { const k = i / (16 * S);  // stem of the smoke column
+    smoke.emit(p.x + rand(-6, 6), p.y + k * 40 * S, p.z + rand(-6, 6), rand(-3, 3), rand(30, 55), rand(-3, 3), rand(4, 8), 8 * S, rand(40, 80) * S, .12, .115, .11, .42, .41, .4, .8, .5, -1); }
+  // 5. ground blast: dust ring, low flat shockwave, scorch of dirt thrown out
+  if (low && !water) { for (let i = 0; i < 18 + 10 * S; i++) { const a = rand(0, 6.283), v = rand(30, 90) * Math.sqrt(S);
+      smoke.emit(p.x, Math.max(gh, p.y - 8) + 2, p.z, Math.cos(a) * v, rand(1, 9), Math.sin(a) * v, rand(2, 4.5), 7 * S, rand(26, 50) * S, .46, .4, .32, .52, .47, .4, .75, 1.6); }
+    shockwave(_v6.set(p.x, Math.max(gh, 0) + 1.5, p.z), 90 * S, .7, new THREE.Color(1.5, 1.1, .7), true); }
+  if (water) waterSplash(p, Math.min(S, 2) * clamp(1.4 - Math.max(p.y, 0) / 40, .4, 1.4));
+  shockwave(p, 60 * S, .55); if (big) after(.12, () => shockwave(p, 105 * S, .8, new THREE.Color(1.1, .8, .5)));
+  if (light) { flash.position.copy(p); flash.intensity = 8 * S; }
   const d = p.distanceTo(camera.position);
-  shake = Math.max(shake, clamp(1 - d / 1800, 0, 1) * scale * 1.3);
-  fx.flash = Math.max(fx.flash, clamp(1 - d / 2500, 0, 1) * .22 * Math.min(scale, 1.5));
-  sfxNoise(1.8 * Math.min(scale, 1.5), 1000, clamp(1 - d / 7000, .05, 1) * .95 * Math.min(scale, 1.4), 'lowpass', 70);
+  shake = Math.max(shake, clamp(1 - d / 2000, 0, 1) * S * 1.4);
+  fx.flash = Math.max(fx.flash, clamp(1 - d / 2600, 0, 1) * .26 * Math.min(S, 1.6));
+  sfxNoise(1.9 * Math.min(S, 1.6), 900, clamp(1 - d / 7500, .05, 1) * .98 * Math.min(S, 1.5), 'lowpass', 60);
+}
+// big targets cook off: a chain of secondary blasts, ammunition flashes and a long fire
+function cookOff(t, n = 5, span = 3, size = 1) {
+  const r = Math.max(t.radius || 20, 14) * .55;
+  for (let i = 0; i < n; i++) after(.25 + i * span / n + rand(0, .3), () => { const q = new V3(t.pos.x + rand(-r, r), t.pos.y + rand(-2, 12), t.pos.z + rand(-r, r)); explode(q, size * rand(.55, 1.1), false); spawnDebris(q, _v1.set(rand(-20, 20), 40, rand(-20, 20)), 3); });
 }
 // water column + rolling mist when something blows up on (or crashes into) the sea
 function waterSplash(p, scale = 1) {
@@ -1916,7 +1994,7 @@ function updateWake(dt) {
 function puff(p, n = 6, size = 5, col = .7) { for (let i = 0; i < n; i++) smoke.emit(p.x, p.y, p.z, rand(-6, 6), rand(0, 8), rand(-6, 6), rand(.8, 1.6), size, size * 3, col, col, col * .95, col, col, col, .7, 1.5); }
 function updateEffects(dt) {
   for (const w of waves) { if (!w.mesh.visible) continue; w.t += dt; const t = w.t / w.dur; if (t >= 1) { w.mesh.visible = false; continue; }
-    w.mesh.scale.setScalar(1 + w.size * (1 - Math.pow(1 - t, 3))); w.mesh.material.opacity = .9 * (1 - t) * (1 - t); w.mesh.lookAt(camera.position); }
+    w.mesh.scale.setScalar(1 + w.size * (1 - Math.pow(1 - t, 3))); w.mesh.material.opacity = .9 * (1 - t) * (1 - t); if (!w.flat) w.mesh.lookAt(camera.position); }
   for (const d of debris) { if (d.life <= 0) continue; d.life -= dt; d.vel.y -= 22 * dt; d.vel.multiplyScalar(1 - .4 * dt); d.mesh.position.addScaledVector(d.vel, dt);
     d.mesh.rotation.x += d.spin.x * dt; d.mesh.rotation.y += d.spin.y * dt; d.mesh.rotation.z += d.spin.z * dt; const p = d.mesh.position;
     if (d.burn) fire.emit(p.x, p.y, p.z, 0, 0, 0, .3, 3, 1.5, 1, .7, .3, .9, .3, .05, 1, 0);
@@ -1968,7 +2046,7 @@ function damage(t, amt, byMissile, vamt, src) {
 }
 function destroy(t, byPlayer) {
   t.alive = false; if (byPlayer) achOnKill(t, lastSrc); lastSrc = '';
-  explode(t.pos, t.isBoss ? 3 : t.kind === 'air' ? 1.25 : 1.6);
+  explode(t.pos, t.isBoss ? 3 : t.kind === 'air' ? 1.25 : .5);
   if (byPlayer || t.kind === 'air') {
     score += t.score; kills++; if (mode === 'multi' && NET.mt && NET.mt.mode === 'coop') NET.mt.sc = (NET.mt.sc || 0) + t.score;
     chain = missionTime - lastKillT < 8 ? chain + 1 : 1; lastKillT = missionTime; if (mode === 'tutorial') tut.kills++;
@@ -1987,8 +2065,12 @@ function destroy(t, byPlayer) {
   else if (t.kind === 'air') { t.dead = true; t.vel.copy(t.dir).multiplyScalar(t.speed * .75); spawnDebris(t.pos, t.vel, t.boss ? 30 : 9);
     if (t.boss) { for (const q of t.pods) { q.alive = false; q.removed = true; } for (let i = 1; i < 7; i++) after(i * .35, () => explode(_v6.copy(t.pos).add(_v1.set(rand(-60, 60), rand(-10, 10), rand(-40, 40))), 1.6)); radio('NIGHTJAR', `${t.label} の撃墜を確認！やったぞ！`, 4, true); } }
   else {
-    t.wreck = true; t.mesh.traverse(o => { if (o.isMesh) o.material = groundMat.wreck; }); t.mesh.scale.y = .45; spawnDebris(t.pos, _v1.set(0, 60, 0), 7);
-    shockwave(t.pos, 140, .9, new THREE.Color(1.6, 1.0, .5));
+    t.wreck = true; t.wreckT = 0; t.mesh.traverse(o => { if (o.isMesh) o.material = groundMat.wreck; }); if (!t.ship) t.mesh.scale.y *= .45;
+    const R = Math.max(t.radius || 20, 14), big = R > 45, nuts = Math.min(5, Math.max(1, Math.round(R / 22)));
+    explode(t.pos, clamp(R / 20, 1.4, 4), true); spawnDebris(t.pos, _v1.set(0, 60, 0), 6 + nuts * 3);
+    shockwave(t.pos, 140 + R * 2, .9, new THREE.Color(1.6, 1.0, .5));
+    cookOff(t, big ? 9 : t.type === 'TANK' || t.type === 'FACT' ? 5 : 3, big ? 5 : 2.4, clamp(R / 40, .8, 2));
+    t.cook = big ? 8 : t.type === 'TANK' ? 12 : 3;
   }
   if (t.cruise) CAMP.f.cmKilled = (CAMP.f.cmKilled || 0) + 1;
   if (t.onDie) t.onDie(t);
@@ -2403,8 +2485,12 @@ function updateEnemy(e, dt) {
   }
 }
 function updateGround(g, dt) {
-  if (g.wreck) { g.smokeT -= dt; if (g.smokeT <= 0) { g.smokeT = .14; smoke.emit(g.pos.x + rand(-6, 6), g.pos.y, g.pos.z + rand(-6, 6), rand(-2, 2), rand(14, 22), rand(-2, 2), 7, 14, 85, .14, .13, .12, .5, .5, .52, .7, .12);
-    if (Math.random() < .5) fire.emit(g.pos.x + rand(-8, 8), g.pos.y - 3, g.pos.z + rand(-8, 8), 0, rand(6, 12), 0, .7, 8, 4, 1, .6, .2, .8, .2, 0, .9, 0); } return; }
+  if (g.wreck) { g.wreckT = (g.wreckT || 0) + dt; const R = Math.max(g.radius || 20, 14), k = clamp(R / 30, .6, 2.2);
+    if (g.ship) { g.sink = (g.sink || 0) + dt; const sk = Math.min(g.sink * (R > 45 ? 1.4 : 2.4), R > 45 ? 34 : 22); g.mesh.position.y = Math.sin(missionTime * .6 + g.pos.x) * .4 - sk; g.mesh.rotation.z = Math.min(g.sink * .035, .5) * (g.listDir || (g.listDir = Math.random() < .5 ? -1 : 1)); g.mesh.rotation.x = Math.min(g.sink * .012, .12); if (g.vel.lengthSq()) { g.pos.addScaledVector(g.vel, dt * .4); g.mesh.position.x = g.pos.x; g.mesh.position.z = g.pos.z; g.vel.multiplyScalar(1 - .15 * dt); } }
+    g.smokeT -= dt; if (g.smokeT <= 0) { g.smokeT = .1; smoke.emit(g.pos.x + rand(-6, 6) * k, g.pos.y + 2, g.pos.z + rand(-6, 6) * k, rand(-2, 2), rand(16, 26), rand(-2, 2), rand(6, 9), 14 * k, 85 * k, .1, .095, .09, .46, .45, .45, .78, .12, -1);
+      for (let i = 0; i < 1 + (k > 1.3) + (g.wreckT < 20); i++) fire.emit(g.pos.x + rand(-9, 9) * k, g.pos.y - 2, g.pos.z + rand(-9, 9) * k, rand(-1, 1), rand(8, 16), rand(-1, 1), rand(.6, 1.1), 9 * k, 3, 1, rand(.5, .8), .2, .8, .2, 0, .95, 0, -4); }
+    if (g.cook > 0 && g.wreckT > 1) { g.cook -= dt; if (Math.random() < dt * (R > 45 ? 1.2 : .6)) explode(_v6.set(g.pos.x + rand(-R, R) * .5, g.pos.y + rand(0, 10), g.pos.z + rand(-R, R) * .5), rand(.5, 1.2), false); }
+    return; }
   if (!g.alive) return;
   if (g.ship) { shipStep(g, dt); shipGuns(g, dt); }
   if (g.type === 'LAND') { g.shield = g.tur.some(t => t.alive); shipGuns(g, dt); }
@@ -3813,16 +3899,40 @@ const ETYPE = {
   L: { label: 'LT', hp: 520, turn: 1.45, spd: 1.15, cd: [3, 4.5], score: 5000, ace: true, salvo: 2, flares: true, lt: true, radius: 18 },
   X: { label: 'SERAPH', hp: 2600, turn: 1.3, spd: 1.12, cd: [5, 6.5], score: 15000, ace: true, salvo: 4, flares: true, isBoss: true, radius: 34 }
 };
+function makeBomberMesh() { // 4-engine strategic bomber (Tu-95/B-52 inspired): lofted fuselage, swept wings, podded turbofans, glass nose, tail gun
+  const g = new THREE.Group(), skin = SKIN.camo;
+  const mk = (c, r = .8, m = .3) => new THREE.MeshStandardMaterial({ color: c, map: skin.map, roughness: r, metalness: m, side: THREE.DoubleSide });
+  const body = mk(0x6b705f), under = mk(0x9aa0a6), dark = mk(0x2c2f2a, .7, .5), tail = mk(0x4c5140);
+  const glass = new THREE.MeshStandardMaterial({ color: 0x18242c, metalness: .9, roughness: .1, emissive: 0x04080b });
+  const fus = new THREE.Mesh(loftGeo([{ z: -24, w: .2, h: .2, y: -.4 }, { z: -21, w: 1.7, h: 1.7, y: -.2 }, { z: -15, w: 2.9, h: 3.1 }, { z: -5, w: 3.4, h: 3.5 }, { z: 8, w: 3.3, h: 3.4 }, { z: 18, w: 2.2, h: 2.4, y: .4 }, { z: 26, w: .5, h: .6, y: .9 }], 28), body); g.add(fus);
+  const ng = new THREE.Mesh(new THREE.SphereGeometry(1.9, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), glass); ng.rotation.x = -Math.PI / 2; ng.scale.set(1, 1, 1.3); ng.position.set(0, .2, -19.4); g.add(ng);
+  const cp = new THREE.Mesh(new THREE.SphereGeometry(1.7, 12, 8), glass); cp.scale.set(.9, .55, 2.2); cp.position.set(0, 2.9, -13); g.add(cp);
+  const wing = flatPart([[0, -9], [34, 6], [35, 10], [0, 8], [-35, 10], [-34, 6]], .9, body); wing.position.set(0, -.4, 0); g.add(wing);
+  const wingU = flatPart([[0, -8], [32, 6.5], [32, 7.2], [0, 6], [-32, 7.2], [-32, 6.5]], .25, under); wingU.position.set(0, -1.1, 0); g.add(wingU);
+  const sta = flatPart([[0, 20], [12, 25], [12, 27.5], [0, 26.5], [-12, 27.5], [-12, 25]], .5, body); sta.position.set(0, 1.4, 0); g.add(sta);
+  const fin = flatPart([[0, 0], [0, 7], [-4, 7], [-8, 0]], .5, tail); fin.rotation.z = Math.PI / 2; fin.rotation.y = 0; fin.position.set(0, 2.5, 18); g.add(fin);
+  const fin2 = new THREE.Mesh(new THREE.BoxGeometry(.5, 9, 6.5), tail); fin2.position.set(0, 7, 21.5); fin2.rotation.x = .35; g.add(fin2);
+  const nac = loftGeo([{ z: -3.4, w: .85, h: .85 }, { z: -2.8, w: 1.15, h: 1.15 }, { z: 1.5, w: 1.25, h: 1.25 }, { z: 4.5, w: .95, h: .95 }, { z: 5.2, w: .7, h: .7 }], 18);
+  const pylons = [];
+  for (const [x, z, y] of [[-8, -3, -1.9], [8, -3, -1.9], [-17, 1.6, -1.7], [17, 1.6, -1.7]]) {
+    const n = new THREE.Mesh(nac, dark); n.position.set(x, y, z); g.add(n);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(1.1, .12, 6, 16), under); lip.position.set(x, y, z - 3.2); g.add(lip);
+    const fan = new THREE.Mesh(new THREE.CircleGeometry(.95, 14), new THREE.MeshBasicMaterial({ color: 0x050607 })); fan.position.set(x, y, z - 3.15); fan.rotation.y = Math.PI; g.add(fan);
+    const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(1.6, .8, .35), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); fl.position.set(x, y, z + 6); fl.scale.setScalar(4); g.add(fl);
+    const pg = new THREE.Group(); pg.position.set(x * 1.12, y - .9, z - 1); g.add(pg); pylons.push(pg); }
+  const tg = new THREE.Mesh(new THREE.SphereGeometry(.8, 8, 6), dark); tg.position.set(0, 1.3, 27); g.add(tg);
+  const dor = new THREE.Mesh(new THREE.SphereGeometry(.9, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), dark); dor.position.set(0, 3.5, 2); g.add(dor);
+  const an = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, 3, 5), dark); an.position.set(0, 3.9, -6); g.add(an);
+  for (const sx of [-1, 1]) { const t = new THREE.Mesh(new THREE.SphereGeometry(.18, 6, 4), new THREE.MeshBasicMaterial({ color: sx < 0 ? 0xff2200 : 0x22ff44 })); t.position.set(sx * 35, -.1, 8); g.add(t); }
+  g.scale.setScalar(1.15); g.userData.pylons = pylons; return g;
+}
 function enemyMesh(code) {
   let m;
   switch (code) {
     case 'A': return makeJet({ body: 0x1d1e22, dark: 0x111214, tail: 0xd9b229, enemy: true });
     case 'I': m = makeJet({ body: 0x8a9098, dark: 0x4a4f55, tail: 0x6a7278, shape: 'delta', enemy: true }); return m;
     case 'S': m = makeJet({ body: 0x2a2e33, dark: 0x1a1d20, tail: 0x2a2e33, shape: 'wing', enemy: true }); return m;
-    case 'M': { m = makeJet({ body: 0x6b705f, dark: 0x40443a, tail: 0x5a5f4c, enemy: true }); m.scale.set(2.2, 1.6, 1.8);
-      const pm = new THREE.MeshStandardMaterial({ color: 0x3a3e36, metalness: .4, roughness: .6 });
-      for (const x of [-3.2, 3.2]) { const g = new THREE.CylinderGeometry(.55, .6, 3.2, 10); g.rotateX(-Math.PI / 2); const p = new THREE.Mesh(g, pm); p.position.set(x, -.5, 1.2); m.add(p); }
-      return m; }
+    case 'M': return makeBomberMesh();
     case 'L': { const tail = { JACKAL: 0x3f8f4a, RAVEN: 0x7a3fbf, VANTA: 0xd9b229 }[dfNow().lt] || 0xc23a2a;
       m = makeJet({ body: 0x23252b, dark: 0x111214, tail, shape: 'fsw', armor: 1, enemy: true }); return m; }
     case 'X': m = makeJet({ body: 0xe8ecf0, dark: 0x8a2a2a, tail: 0xb01818, shape: 'fsw', armor: 2, eng: 'turbo', sp: 'eml', enemy: true }); m.scale.setScalar(2.2); return m;
@@ -4094,32 +4204,55 @@ function campSpot(o = {}) {
   const x = rand(x0, x1), z = rand(z0, z1); return [x, z, Math.max(groundAt(x, z), 0)];
 }
 // ---- meshes ----
-function makeShipMesh(kind) {
-  const g = new THREE.Group(), L = kind === 'BB' ? 150 : kind === 'CG' ? 90 : kind === 'LST' ? 74 : 64, B = kind === 'BB' ? 22 : kind === 'CG' ? 12 : kind === 'LST' ? 15 : 9;
-  const hullM = new THREE.MeshStandardMaterial({ color: kind === 'LST' ? 0x5a6066 : 0x6a7178, roughness: .6, metalness: .3 }), deckM = new THREE.MeshStandardMaterial({ color: 0x3e4247, roughness: .8 });
-  const red = new THREE.MeshStandardMaterial({ color: 0x5a2420, roughness: .8 });
-  const sh = new THREE.Shape(); sh.moveTo(-B / 2, L / 2); sh.lineTo(B / 2, L / 2); sh.lineTo(B / 2, -L * .22); sh.quadraticCurveTo(B / 2, -L * .42, 0, -L / 2); sh.quadraticCurveTo(-B / 2, -L * .42, -B / 2, -L * .22); sh.closePath();
-  const hull = new THREE.ExtrudeGeometry(sh, { depth: 7, bevelEnabled: false }); hull.rotateX(Math.PI / 2); hull.translate(0, 5, 0);
-  g.add(new THREE.Mesh(hull, hullM));
-  const water = new THREE.Mesh(new THREE.BoxGeometry(B * .98, 2, L * .9), red); water.position.y = -1.5; g.add(water);
-  const box = (w, h, d, x, y, z, m = hullM) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
-  if (kind === 'LST') { box(B * .9, 6, L * .35, 0, 8, L * .22); box(B * .5, 8, 8, 0, 15, L * .3); box(B * .9, .4, L * .5, 0, 5.2, -L * .1, deckM); }
-  else {
-    box(B * .5, kind === 'BB' ? 12 : 7, L * .18, 0, kind === 'BB' ? 11 : 8.5, L * .05); box(B * .3, kind === 'BB' ? 10 : 6, 4, 0, kind === 'BB' ? 21 : 14, L * .05);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(.25, .35, kind === 'BB' ? 18 : 12, 6), deckM); mast.position.set(0, kind === 'BB' ? 30 : 20, L * .05); g.add(mast);
-    const turrets = kind === 'BB' ? [-.32, -.2, .3] : kind === 'CG' ? [-.3, -.18, .28] : [-.3, .3];
-    for (const t of turrets) { const tr = new THREE.Mesh(new THREE.CylinderGeometry(B * .22, B * .25, 3, 12), hullM); tr.position.set(0, 7.5, L * t); g.add(tr);
-      const brl = new THREE.Mesh(new THREE.BoxGeometry(.8, .8, B * .6), deckM); brl.position.set(0, 8, L * t + (t < 0 ? -B * .35 : B * .35)); g.add(brl); }
-    box(B * .2, 6, B * .2, 0, 13, L * .2, deckM);
-  }
-  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return g;
+// ---- warships: modelled on real classes (Arleigh Burke DD, Ticonderoga CG, Iowa-class BB, Newport-class LST) ----
+const SM = (() => { const m = (c, r = .7, me = .35) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: me });
+  return { hull: m(0x6e757a, .6, .4), deck: m(0x464b50, .85, .2), sup: m(0x858c91, .62, .35), dark: m(0x25282b, .75, .4), boot: m(0x5a2420, .85, .1), steel: m(0x5c6268, .5, .7), glass: m(0x13222a, .12, .9), white: m(0xe4e6e2, .5, .1), pale: m(0x9aa1a5, .6, .4), deckStripe: m(0xc8c8be, .8, 0) }; })();
+function shipHull(g, L, B, H = 7) {
+  const outline = w => { const sh = new THREE.Shape(); sh.moveTo(-w / 2, L / 2); sh.lineTo(w / 2, L / 2); sh.lineTo(w / 2, -L * .2); sh.quadraticCurveTo(w / 2, -L * .4, 0, -L / 2); sh.quadraticCurveTo(-w / 2, -L * .4, -w / 2, -L * .2); sh.closePath(); return sh; };
+  const mk = (w, depth, y, m) => { const geo = new THREE.ExtrudeGeometry(outline(w), { depth, bevelEnabled: true, bevelThickness: .5, bevelSize: .5, bevelSegments: 1 }); geo.rotateX(Math.PI / 2); geo.translate(0, y, 0); const o = new THREE.Mesh(geo, m); g.add(o); return o; };
+  mk(B * .82, 5, -.5, SM.boot); mk(B, H - 3, H - 1, SM.hull); mk(B * .96, .7, H + .1, SM.deck);
+  const flare = new THREE.Mesh(new THREE.BoxGeometry(B * .9, 3.4, L * .2), SM.hull); flare.position.set(0, H + 1.2, -L * .31); flare.rotation.x = .1; g.add(flare); // raised, flared bow
+  for (const sx of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(.12, .9, L * .86), SM.dark); rail.position.set(sx * B * .47, H + 1.2, L * .04); g.add(rail); }
 }
-function makeHangarMesh() {
-  const g = new THREE.Group(), geo = new THREE.CylinderGeometry(14, 14, 46, 18, 1, false, 0, Math.PI); geo.rotateZ(Math.PI / 2); geo.rotateY(Math.PI / 2);
-  const m = new THREE.Mesh(geo, groundMat.main); g.add(m);
-  const door = new THREE.Mesh(new THREE.PlaneGeometry(22, 12), new THREE.MeshStandardMaterial({ color: 0x2b2e30, roughness: .8 })); door.position.set(0, 6, -23.1); door.rotation.y = Math.PI; g.add(door);
-  return g;
+function shipGun(g, x, y, z, k = 1, dir = -1) { // 5-inch mount: turret + barrel
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(1.5 * k, 1.8 * k, 1.5 * k, 10), SM.sup); t.position.set(x, y, z); g.add(t);
+  const h = new THREE.Mesh(new THREE.BoxGeometry(2 * k, 1.1 * k, 2.6 * k), SM.pale); h.position.set(x, y + 1.1 * k, z); g.add(h);
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(.16 * k, .2 * k, 4.2 * k, 6), SM.dark); b.rotation.x = Math.PI / 2; b.position.set(x, y + 1.15 * k, z + dir * 3 * k); g.add(b);
+}
+function shipVLS(g, x, y, z, w, d) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, .5, d), SM.dark); o.position.set(x, y, z); g.add(o); for (let i = 0; i < Math.round(w / 1.4); i++) for (let j = 0; j < Math.round(d / 1.4); j++) { const c = new THREE.Mesh(new THREE.BoxGeometry(1.0, .12, 1.0), SM.steel); c.position.set(x - w / 2 + .7 + i * 1.4, y + .3, z - d / 2 + .7 + j * 1.4); g.add(c); } }
+function shipMast(g, x, y, z, h) { const m = new THREE.Mesh(new THREE.CylinderGeometry(.28, .45, h, 6), SM.pale); m.position.set(x, y + h / 2, z); g.add(m); for (const [yy, w] of [[.55, 5], [.75, 3.2]]) { const c = new THREE.Mesh(new THREE.BoxGeometry(w, .18, .18), SM.pale); c.position.set(x, y + h * yy, z); g.add(c); }
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, h * .35, 4), SM.dark); ant.position.set(x, y + h * 1.15, z); g.add(ant); }
+function makeShipMesh(kind) {
+  const g = new THREE.Group(), box = (w, h, d, x, y, z, m = SM.sup) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };
+  const cyl = (rt, rb, h, x, y, z, m = SM.pale, seg = 10) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), m); o.position.set(x, y, z); g.add(o); return o; };
+  const L = { BB: 178, CG: 106, DD: 90, LST: 86 }[kind] || 90, B = { BB: 27, CG: 14, DD: 12, LST: 17 }[kind] || 12, H = kind === 'BB' ? 9 : 7;
+  shipHull(g, L, B, H); const dk = H + .6;
+  if (kind === 'LST') {
+    box(B * .9, 3.4, 6, 0, dk + 1.7, -L * .42, SM.dark); box(B * .7, .35, 12, 0, dk + .2, -L * .5, SM.deck).rotation.x = -.22; // bow doors/ramp
+    box(B * .86, 7, 16, 0, dk + 3.5, L * .3); box(B * .6, 5, 11, 0, dk + 9.5, L * .33); box(B * .62, 1.1, .12, 0, dk + 10, L * .33 - 5.6, SM.glass); cyl(1.3, 1.5, 6, 3.4, dk + 11, L * .38, SM.dark);
+    for (let i = 0; i < 9; i++) { const c = box(3.2 + (i % 3) * .4, 2.2, 5.2, (i % 3 - 1) * 4.6, dk + 1.1, -L * .28 + Math.floor(i / 3) * 8.4, i % 2 ? SM.dark : SM.sup); c.rotation.y = (i % 4 - 1.5) * .05; } // deck vehicles
+    shipMast(g, 0, dk + 12, L * .33, 9); for (const sx of [-1, 1]) { box(.5, 7, .5, sx * 6.4, dk + 3.5, L * .06, SM.steel); box(.35, .35, 12, sx * 6.4, dk + 7, L * .06 - 5, SM.steel).rotation.x = .5; } // derricks
+  } else {
+    const bb = kind === 'BB', cg = kind === 'CG', S = bb ? 1.9 : 1;
+    // superstructure: stepped tiers, bridge glazing, radar panels
+    box(B * .58, 4.6 * (bb ? 1.5 : 1), L * (bb ? .13 : .2), 0, dk + 2.5, -L * (bb ? .02 : .06)); box(B * .5, 4 * (bb ? 1.4 : 1), L * (bb ? .1 : .14), 0, dk + 6.2 * (bb ? 1.3 : 1), -L * (bb ? .02 : .06));
+    box(B * .46, 1.1, .12, 0, dk + 6.6 * (bb ? 1.3 : 1), -L * (bb ? .02 : .06) - L * (bb ? .05 : .07) - .1, SM.glass);
+    if (!bb) for (const sx of [-1, 1]) { const pnl = box(.15, 3.4, 3.4, sx * B * .27, dk + 8.6, -L * .06 - 2.5, SM.dark); pnl.rotation.z = sx * .1; }
+    shipMast(g, 0, dk + (bb ? 29 : 9), -L * (bb ? .02 : .04), bb ? 24 : cg ? 16 : 13);
+    if (bb) { box(B * .28, 15, 7.5, 0, dk + 18, -L * .02, SM.sup); box(B * .36, 1.2, 9.5, 0, dk + 25.8, -L * .02, SM.hull); box(B * .3, 3, 8, 0, dk + 26, -L * .02, SM.pale); box(B * .22, 2.4, 5, 0, dk + 29, -L * .02, SM.dark); box(5, .35, 3.5, 0, dk + 33, -L * .02, SM.pale); }
+    // funnels
+    const fz = bb ? [.1, .2] : cg ? [.12, .22] : [.1, .2]; for (const f of fz) { const fn = box(B * (bb ? .26 : .2), bb ? 8 : 5, B * (bb ? .26 : .2), 0, dk + (bb ? 11 : 6), L * f, SM.pale); fn.rotation.x = -.06; box(B * (bb ? .2 : .15), .4, B * (bb ? .2 : .15), 0, dk + (bb ? 15.3 : 8.6), L * f - .5, SM.dark); }
+    if (bb) { // Iowa: three triple 16-inch turrets, six twin 5-inch mounts, aircraft crane
+      for (const [tz, dir] of [[-.3, -1], [-.19, -1], [.34, 1]]) { cyl(B * .3, B * .33, 2.4, 0, dk + 1.2, L * tz, SM.sup, 18); box(B * .5, 3.6, B * .55, 0, dk + 4, L * tz + dir * 1.5, SM.hull); box(B * .46, 1.4, B * .5, 0, dk + 6.2, L * tz + dir * 1.8, SM.pale);
+        for (const bx of [-1.6, 0, 1.6]) { const br = cyl(.55, .62, 24, bx, dk + 4.6, L * tz + dir * 14, SM.dark, 8); br.rotation.x = Math.PI / 2; br.rotation.z = 0; } }
+      for (const sx of [-1, 1]) for (const k of [-.1, .02, .12]) { cyl(1.3, 1.5, 1.2, sx * B * .34, dk + .6, L * k * 1.4 + 6, SM.sup); box(2.2, 1.2, 2.4, sx * B * .34, dk + 1.7, L * k * 1.4 + 6, SM.pale); }
+      box(.5, 12, .5, 0, dk + 6, L * .4, SM.steel); box(.35, .35, 14, 0, dk + 11, L * .4 + 4, SM.steel).rotation.x = .35;
+    } else { shipGun(g, 0, dk + .75, -L * .3, 1, -1); shipVLS(g, 0, dk + .35, -L * .2, 4.6, 8); if (cg) { shipGun(g, 0, dk + 5.2, L * .26, 1, 1); shipVLS(g, 0, dk + .35, L * .15, 4.6, 8); shipVLS(g, 0, dk + .35, L * .34, 4.6, 7); } else { shipVLS(g, 0, dk + .35, L * .3, 4.6, 7); }
+      box(B * .6, 3.2, 9, 0, dk + 1.7, L * .42); box(B * .58, .2, 5, 0, dk + .1, L * .46, SM.deckStripe); for (const sx of [-1, 1]) { box(.12, 3, 9, sx * 2.5, dk + 3, L * .42, SM.dark); } // helo hangars + deck
+      for (const z of [-L * .02, L * .24]) { const c = cyl(.9, .9, 1.6, 0, dk + 5.5, z, SM.white, 12); c.scale.set(1, 1, 1); box(.25, .25, 1.8, 0, dk + 5.9, z - 1.1, SM.dark); } } // CIWS
+    for (const sx of [-1, 1]) for (const z of [-.08, .12]) { const r = box(1.7, 1, 4.2, sx * B * .45, dk + 1.2, L * z, SM.white); r.rotation.y = sx * .1; } // boats / rafts
+  }
+  return gShadow(g);
 }
 function makeBaseMesh() {
   const g = new THREE.Group();
@@ -4173,7 +4306,7 @@ function shipGuns(g, dt) {
 }
 // ---- spawning ----
 function campGround(type, x, z, h, o = {}) {
-  const mesh = type === 'SAM' || type === 'AA' ? makeSAM(groundMat) : type === 'RADAR' ? makeRadar(groundMat) : type === 'TANK' ? makeTanks(groundMat) : type === 'HANGAR' ? makeHangarMesh() : type === 'CV' ? makeCarrier() : type === 'LAND' ? makeLandshipMesh() : type === 'TUR' ? makeTurretMesh() : type === 'FACT' ? makeFactoryMesh() : makeShipMesh(type);
+  const mesh = type === 'SAM' ? makeSAM() : type === 'AA' ? makeAAMesh() : type === 'RADAR' ? makeRadar() : type === 'TANK' ? makeTanks() : type === 'HANGAR' ? makeHangarMesh() : type === 'CV' ? makeCarrier() : type === 'LAND' ? makeLandshipMesh() : type === 'TUR' ? makeTurretMesh() : type === 'FACT' ? makeFactoryMesh() : makeShipMesh(type);
   const ship = type === 'DD' || type === 'CG' || type === 'BB' || type === 'LST' || type === 'CV', big = type === 'CV' || type === 'LAND' || type === 'TUR' || type === 'FACT';
   if (!ship && !big) mesh.scale.setScalar(type === 'HANGAR' ? 1 : 1.4); if (type === 'CV') mesh.scale.setScalar(1.25);
   mesh.position.set(x, ship ? 0 : h - 1, z); mesh.rotation.y = o.rot != null ? o.rot : rand(0, 6.28); scene.add(mesh);
@@ -5068,7 +5201,7 @@ function frame(t) {
     smoke.update(dt); fire.update(dt); if (state !== 'play') updateEffects(dt);
     flash.intensity *= Math.exp(-rdt * 7);
     water.material.uniforms.time.value += rdt; updateWake(dt);
-    updateCamera(rdt, inp); updateStreaks();
+    updateCamera(rdt, inp); if (window.__skyCam) { camera.position.copy(window.__skyCam.p); camera.lookAt(window.__skyCam.l); camera.updateMatrixWorld(); } updateStreaks();
   }
   const sc = renderer.getDrawingBufferSize(_tmpSize).y / (2 * Math.tan(camera.fov * Math.PI / 360));
   smoke.mat.uniforms.scale.value = fire.mat.uniforms.scale.value = sc;
@@ -5200,7 +5333,7 @@ player.pos.set(0, 3000, 14500);
 resize();
 updateLoadoutSummary(); menuFocus();
 // test hook, local dev server only
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { enemyMesh, makeLandshipMesh, makeFactoryMesh, makeAirbase, get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
 requestAnimationFrame(frame);
 })();
 </script>
