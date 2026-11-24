@@ -1522,13 +1522,19 @@ function sfxNoise(dur, freq, vol, type = 'lowpass', sweepTo = null, q = 0.8) {
   if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
   s.connect(f); f.connect(g); g.connect(SND.master); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
 }
+// walkie-talkie: squelch break + click when a transmission opens, roger beep + noise tail when it closes
+function sfxRadio(kind) {
+  const c = SND.ctx; if (!c || SND.muted) return;
+  if (kind === 'on') { sfxNoise(.2, 2300, .3, 'bandpass', 3400, 1.1); sfxTone(1250, 900, .04, .09, 'square'); setTimeout(() => sfxNoise(.45, 2800, .07, 'bandpass', 1700, .8), 140); }
+  else { sfxTone(2000, 2000, .07, .07, 'square'); setTimeout(() => sfxTone(1550, 1550, .06, .06, 'square'), 85); setTimeout(() => sfxNoise(.22, 2500, .2, 'bandpass', 1400, 1.1), 150); }
+}
 function sfxTone(f0, f1, dur, vol, type = 'sine') {
   const c = SND.ctx; if (!c || SND.muted) return; const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
   o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
   o.connect(g); g.connect(SND.master); o.start(t); o.stop(t + dur + .05);
 }
 function updateAudio() {
-  const c = SND.ctx; if (!c) return; const t = c.currentTime, on = !SND.muted && (state === 'play');
+  const c = SND.ctx; if (!c) return; const t = c.currentTime, on = !SND.muted && (state === 'play' || state === 'brief');
   const sp = player.speed, th = player.throttle, alive = player.alive && on;
   SND.o1.frequency.setTargetAtTime(55 + sp * .17 + th * 30, t, .1); SND.o2.frequency.setTargetAtTime(110 + sp * .34 + th * 60, t, .1);
   SND.engG.gain.setTargetAtTime(alive ? .07 + th * .06 : 0, t, .1);
@@ -1588,7 +1594,7 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 // mouse buttons: Mouse0 left, Mouse1 middle, Mouse2 right, Mouse3/4 side buttons — handled exactly like keys
-const MOUSE_UI = '#ach,#mres,#title,#hangar,#camp,#lobby,#mroom,#pause,#result,#tut,#brief,button,input,select,label,a,.kb-key';
+const MOUSE_UI = '#amail,#ach,#mres,#title,#hangar,#camp,#lobby,#mroom,#pause,#result,#tut,#brief,button,input,select,label,a,.kb-key';
 addEventListener('mousedown', e => {
   const code = 'Mouse' + e.button;
   if (KB.capture) { e.preventDefault(); e.stopPropagation(); kbCapture({ code, repeat: false, preventDefault() {}, stopPropagation() {} }); return; }
@@ -1718,10 +1724,10 @@ const PARTS = {
 };
 
 /* ================= achievements: special parts are unlocked by playing ================= */
-const ACH = { u: {}, c: {}, session: [] };
+const ACH = { u: {}, c: {}, session: [], pend: [] };
 const campSave_init = () => { try { return (JSON.parse(localStorage.getItem('skylance-camp') || '{}').cleared || 0) >= 10; } catch (e) { return false; } };
-try { const a = JSON.parse(localStorage.getItem('skylance-ach') || '{}'); if (a.u) ACH.u = a.u; if (a.c) ACH.c = a.c; } catch (e) {}
-const achSave = () => { try { localStorage.setItem('skylance-ach', JSON.stringify({ u: ACH.u, c: ACH.c })); } catch (e) {} };
+try { const a = JSON.parse(localStorage.getItem('skylance-ach') || '{}'); if (a.u) ACH.u = a.u; if (a.c) ACH.c = a.c; if (Array.isArray(a.p)) ACH.pend = a.p; } catch (e) {}
+const achSave = () => { try { localStorage.setItem('skylance-ach', JSON.stringify({ u: ACH.u, c: ACH.c, p: ACH.pend })); } catch (e) {} };
 const ACH_DEF = [
   { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全5話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
   { id: 'nohit', n: '無傷の槍', d: '1回も被弾せずにミッションをクリア', rw: '追加装甲 III' },
@@ -1739,8 +1745,8 @@ const partLocked = pt => !!(pt && pt.ach && !ACH.u[pt.ach]);
 const achOn = () => !opts.beginner && mode !== 'tutorial' && mode !== 'multi';
 function achUnlock(id) {
   if (ACH.u[id]) return; const a = ACH_DEF.find(x => x.id === id); if (!a) return;
-  ACH.u[id] = Date.now(); achSave(); ACH.session.push(a);
-  try { showMsg('ACHIEVEMENT  ' + a.n, AMBER, 4.5, true); radio('NIGHTJAR', `実績「${a.n}」を達成。解放：${a.rw}。`, 5, true); sfxTone(660, 1320, .4, .12, 'triangle'); } catch (e) {}
+  ACH.u[id] = Date.now(); ACH.pend.push(id); achSave(); ACH.session.push(a);
+  try { showMsg('ACHIEVEMENT  ' + a.n, AMBER, 4.5, true); showMsg('帰還後、ロビーに連絡が届く', HUDC, 4.5); sfxTone(660, 1320, .4, .12, 'triangle'); setTimeout(() => sfxTone(990, 1980, .5, .08, 'triangle'), 160); } catch (e) {}
 }
 function achAdd(key, n = 1, force) {
   if (!force && !achOn()) return; ACH.c[key] = (ACH.c[key] || 0) + n;
@@ -3868,9 +3874,13 @@ function renderHangar() {
 }
 function renderAch() {
   const done = ACH_DEF.filter(a => ACH.u[a.id]).length; $('#achSub').textContent = `${done} / ${ACH_DEF.length} 達成`;
-  $('#achList').innerHTML = ACH_DEF.map(a => { const ok = !!ACH.u[a.id]; let pr = ''; if (!ok) { const v = a.pr ? a.pr() : a.cnt ? [Math.min(a.need, ACH.c[a.cnt] || 0), a.need] : null;
-      pr = v ? `<i class="ap"><b style="width:${Math.round(v[0] / v[1] * 100)}%"></b></i><em>${a.fmt ? a.fmt(ACH.c[a.cnt] || 0) : v[0] + ' / ' + v[1]}</em>` : ''; }
-    return `<li class="${ok ? 'ok' : ''}"><span class="an">${ok ? '🏆' : '🔒'} ${a.n}</span><span class="ad">${a.d}</span><span class="ar">報酬：${a.rw}</span>${pr}</li>`; }).join('');
+  const prog = a => { if (ACH.u[a.id]) return null; const v = a.pr ? a.pr() : a.cnt ? [Math.min(a.need, ACH.c[a.cnt] || 0), a.need] : null; return v ? { v, txt: a.fmt ? a.fmt(ACH.c[a.cnt] || 0) : v[0] + ' / ' + v[1] } : { v: null }; };
+  const rows = ACH_DEF.map(a => ({ a, ok: !!ACH.u[a.id], p: prog(a) }));
+  rows.sort((x, y) => (x.ok - y.ok) || ((y.p && y.p.v ? y.p.v[0] / y.p.v[1] : 0) - (x.p && x.p.v ? x.p.v[0] / x.p.v[1] : 0)));
+  $('#achList').innerHTML = rows.map(({ a, ok, p }) => {
+    const pct = p && p.v ? Math.round(p.v[0] / p.v[1] * 100) : 0;
+    const bar = !ok && p && p.v ? `<div class="apr"><i><b style="width:${pct}%"></b></i><span>${p.txt}</span></div>` : '';
+    return `<li class="ac ${ok ? 'ok' : 'lock'}"><div class="ai">${ok ? '🏆' : '🔒'}</div><div class="ab"><div class="an">${a.n}</div><div class="ad">${a.d}</div>${bar}</div><div class="ar"><small>${ok ? '解除済み' : '報酬'}</small><b>${a.rw}</b></div></li>`; }).join('');
   $('#ach').hidden = false; $('#achClose').focus();
 }
 function updateLoadoutSummary() { const el = $('#loSummary'); if (el) el.textContent = `${part('frame').n} / ${part('engine').n} / ${part('special').n} / ${part('gun').n} / ${part('paint').n}`; }
@@ -5109,7 +5119,7 @@ function startBrief(i) {
   else { const cv = R.mesh; cv.updateMatrixWorld(); BRF.carrier = cv; BRF.p0 = cv.localToWorld(cv.userData.cat.clone()).add(_v1.set(0, gh, 0)); BRF.len = 120; BRF.deckEnd = 110; }
   P.pos.copy(BRF.p0); P.quat.setFromUnitVectors(NEG_Z, R.dir); P.speed = 0; P.throttle = .3; ud.gearSet(1); BRF.gear = 1;
   Object.assign(BRF, { t: 0, li: -1, lt: 0, ending: false, dist: 0, v: 0, pitch: 0, alt: 0, ph: 'spool', phT: 0, fix: null, camInit: false });
-  BRF.lines = BRIEF_LINES[M.key || M.id] || [['HQ', M.story]];
+  BRF.lines = BRIEF_LINES[M.key || M.id] || [['HQ', M.story]]; BRF.var = Math.max(0, CMISSIONS.indexOf(M)) % 4; BRF.sFlag = {}; BRF.offDone = true; BRF.sp = null; BRF.fp = null;
   BRF.dur = Math.max(18, BRF.lines.reduce((a, l) => a + 1.4 + l[1].length * .085, 2.5));
   BRF.rollStart = Math.max(4.5, BRF.dur - 13.5);
   const el = briefDom(); el.hidden = false; $('#brF').style.opacity = 1; requestAnimationFrame(() => { $('#brF').style.opacity = 0; });
@@ -5121,8 +5131,8 @@ function briefUpdate(dt) {
   const P = player, R = BRF.run, t = (BRF.t += dt), ud = P.mesh.userData;
   // subtitles: one line at a time, typed out
   BRF.lt -= dt;
-  if (BRF.lt <= 0 && t > 2.2) { BRF.li++; const L = BRF.lines[BRF.li]; if (L) { BRF.lt = 1.4 + L[1].length * .085; BRF.typed = 0; $('#brW').textContent = L[0]; $('#brS').style.visibility = 'visible'; } else BRF.lt = 99; }
-  const L = BRF.lines[BRF.li]; if (L) { BRF.typed = Math.min(L[1].length, (BRF.typed || 0) + dt * 34); $('#brX').textContent = L[1].slice(0, Math.floor(BRF.typed)); }
+  if (BRF.lt <= 0 && t > 2.2) { BRF.li++; const L = BRF.lines[BRF.li]; if (L) { sfxRadio('on'); BRF.offDone = false; BRF.lt = 1.4 + L[1].length * .085; BRF.typed = 0; $('#brW').textContent = L[0]; $('#brS').style.visibility = 'visible'; } else BRF.lt = 99; }
+  const L = BRF.lines[BRF.li]; if (L) { BRF.typed = Math.min(L[1].length, (BRF.typed || 0) + dt * 34); $('#brX').textContent = L[1].slice(0, Math.floor(BRF.typed)); if (!BRF.offDone && BRF.typed >= L[1].length) { BRF.offDone = true; sfxRadio('off'); } }
   if (t > 3.2) document.querySelector('#brief .card').style.opacity = 0;
   // flight: spool up → roll / catapult → rotate & climb; gear comes up shortly after liftoff
   BRF.phT += dt;
@@ -5132,10 +5142,12 @@ function briefUpdate(dt) {
   const rot = R.land ? BRF.v > 76 : BRF.dist > BRF.deckEnd;
   if (rot) BRF.pitch = Math.min(BRF.pitch + dt * (R.land ? .2 : .14), .24);
   if (rot && (BRF.pitch > .1 || !R.land)) BRF.alt += BRF.v * Math.sin(Math.max(BRF.pitch, R.land ? 0 : .05)) * dt;
-  if (BRF.ph === 'spool' && t > BRF.rollStart) { BRF.ph = 'roll'; BRF.phT = 0; }
-  if (BRF.ph === 'roll' && BRF.alt > (R.land ? 7 : 4)) { BRF.ph = 'gear'; BRF.phT = 0; }
+  if (BRF.ph === 'spool' && t > BRF.rollStart) { BRF.ph = 'roll'; BRF.phT = 0; sfxNoise(R.land ? 1.4 : .9, R.land ? 500 : 300, R.land ? .35 : .7, 'lowpass', 1600); if (!R.land) { sfxTone(70, 360, .7, .22, 'sawtooth'); sfxNoise(1.6, 900, .25, 'bandpass', 300, .7); } }
+  if (BRF.ph === 'roll' && BRF.alt > (R.land ? 7 : 4)) { BRF.ph = 'gear'; BRF.phT = 0; BRF.sFlag.g = 0; }
   if (BRF.ph === 'gear' && BRF.phT > 3.4) { BRF.ph = 'away'; BRF.phT = 0; BRF.fix = null; }
   if (BRF.ph === 'gear' || BRF.ph === 'away') { BRF.gear = Math.max(0, BRF.gear - (BRF.ph === 'gear' && BRF.phT > .7 ? dt / 1.9 : BRF.ph === 'away' ? 1 : 0)); }
+  if (BRF.ph === 'gear' && BRF.phT > .7 && !BRF.sFlag.g) { BRF.sFlag.g = 1; sfxNoise(.5, 260, .45, 'lowpass', 90); sfxTone(180, 60, .35, .2, 'triangle'); }
+  if (BRF.ph === 'gear' && BRF.phT > 2.5 && BRF.sFlag.g === 1) { BRF.sFlag.g = 2; sfxNoise(.18, 180, .5, 'lowpass', 80); }
   ud.gearSet(BRF.gear);
   P.pos.copy(BRF.p0).addScaledVector(R.dir, BRF.dist); P.pos.y += BRF.alt;
   if (BRF.ph === 'gear' || BRF.ph === 'away') { const need = floorAt(P.pos.x + R.dir.x * 900, P.pos.z + R.dir.z * 900) + 160 - P.pos.y; if (need > 0) { BRF.alt += need * Math.min(1, dt * 1.2); BRF.pitch = Math.min(BRF.pitch + dt * .3, .5); } } // climb over terrain ahead
@@ -5146,13 +5158,27 @@ function briefUpdate(dt) {
   if (!R.land && BRF.ph === 'roll' && BRF.dist < BRF.deckEnd && Math.random() < .8) { _v1.copy(P.pos).addScaledVector(R.dir, -rand(4, 30)); smoke.emit(_v1.x, _v1.y - 1.5, _v1.z, rand(-3, 3), rand(2, 6), rand(-3, 3), rand(1.2, 2.2), 3, 12, .95, .96, .98, .85, .87, .9, .5, .8); } // catapult steam
   if (P.throttle > 1) { _v1.set(0, 0, 10.5).applyQuaternion(P.quat).add(P.pos); fire.emit(_v1.x, _v1.y, _v1.z, P.vel.x * .3, P.vel.y * .3, P.vel.z * .3, .09, 1.8, 3.2, 1, .6, .3, .6, .2, .05, .8, 0); }
   // camera: rear three-quarter on the line → beside the roll → locked to the nose watching the gear fold → hold while it climbs away
-  const side = _v2.set(-R.dir.z, 0, R.dir.x); let cp, look = P.pos, k = 1 - Math.exp(-dt * 4), cut = false;
-  if (BRF.ph === 'spool') cp = _v3.copy(P.pos).addScaledVector(R.dir, -24 + t * .7).addScaledVector(side, 8).add(_v4.set(0, R.land ? 3 : 4, 0));
-  else if (BRF.ph === 'roll') cp = _v3.copy(P.pos).addScaledVector(side, R.land ? 30 : 22).addScaledVector(R.dir, 8).add(_v4.set(0, R.land ? 4 : 6, 0));
-  else if (BRF.ph === 'gear') { // rigidly mounted ahead of and below the nose, looking back at the nose gear
-    cp = P.mesh.localToWorld(_v3.copy(ud.gearCamOff).add(ud.gearCam)); look = P.mesh.localToWorld(_v5.copy(ud.gearCam).add(_v4.set(-.4, -.4, 3.2))); k = 1; cut = BRF.phT < dt * 1.5; }
-  else { if (!BRF.fix) { BRF.fix = true; cut = true; } const back = 28 + BRF.phT * 34; // trail behind and let it pull away
-    cp = _v3.copy(P.pos).addScaledVector(R.dir, -back).addScaledVector(side, 6 + BRF.phT * 2).add(_v4.set(0, 4 + BRF.phT * 1.5, 0)); look = _v5.copy(P.pos).addScaledVector(R.dir, 30); k = 1; }
+  const side = _v2.set(-R.dir.z, 0, R.dir.x); let cp, look = P.pos, k = 1 - Math.exp(-dt * 4), cut = false, fovN = 0; const VR = BRF.var, ph = BRF.ph, first = BRF.phT < dt * 1.5;
+  if (ph === 'spool') {
+    if (VR === 1) { cp = _v3.copy(P.pos).addScaledVector(R.dir, 36 - t * .9).addScaledVector(side, 7).add(_v4.set(0, 1.4, 0)); look = _v5.copy(P.pos).add(_v4.set(0, 1.6, 0)); fovN = 60; } // low head-on, jet looming
+    else if (VR === 2) { cp = _v3.copy(P.pos).addScaledVector(R.dir, -15 + t * .4).add(_v4.set(0, 5.5, 0)); look = _v5.copy(P.pos).addScaledVector(R.dir, 70); fovN = 46; } // over the tail down the line
+    else if (VR === 3) { cp = _v3.copy(P.pos).addScaledVector(side, 13).addScaledVector(R.dir, -2 + t * .5).add(_v4.set(0, 1.3, 0)); look = _v5.copy(P.pos).add(_v4.set(0, 1.8, 0)); fovN = 42; } // wheel-level beside the engine
+    else cp = _v3.copy(P.pos).addScaledVector(R.dir, -24 + t * .7).addScaledVector(side, 8).add(_v4.set(0, R.land ? 3 : 4, 0));
+  } else if (ph === 'roll') {
+    if (VR === 1) { cp = _v3.copy(P.pos).addScaledVector(R.dir, 20).addScaledVector(side, 14).add(_v4.set(0, 2.2, 0)); fovN = 56; }
+    else if (VR === 2) { if (first || !BRF.sp) BRF.sp = P.pos.clone().addScaledVector(R.dir, 70).addScaledVector(side, 30).add(_v4.set(0, 2.5, 0)); cp = BRF.sp; k = 1; cut = first; fovN = 40; } // trackside camera, the jet thunders past
+    else if (VR === 3) { cp = _v3.copy(P.pos).addScaledVector(R.dir, -30).addScaledVector(side, 4).add(_v4.set(0, 14, 0)); look = _v5.copy(P.pos).addScaledVector(R.dir, 30); fovN = 52; }
+    else cp = _v3.copy(P.pos).addScaledVector(side, R.land ? 30 : 22).addScaledVector(R.dir, 8).add(_v4.set(0, R.land ? 4 : 6, 0));
+  } else if (ph === 'gear') {
+    if (VR === 1 || VR === 3) { cp = _v3.copy(P.pos).addScaledVector(side, VR === 1 ? 17 : -17).addScaledVector(R.dir, 5).add(_v4.set(0, 1, 0)); k = 1; cut = first; fovN = 48; }
+    else { cp = P.mesh.localToWorld(_v3.copy(ud.gearCamOff).add(ud.gearCam)); look = P.mesh.localToWorld(_v5.copy(ud.gearCam).add(_v4.set(-.4, -.4, 3.2))); k = 1; cut = first; fovN = 64; } // nose-gear cam
+  } else {
+    if (!BRF.fix) { BRF.fix = true; cut = true; BRF.fp = null; }
+    if (VR === 1) { if (!BRF.fp) BRF.fp = P.pos.clone().addScaledVector(R.dir, 170).addScaledVector(side, 38).add(_v4.set(0, 26, 0)); cp = BRF.fp; k = 1; look = _v5.copy(P.pos); fovN = 46; } // fixed ahead: flies over us
+    else if (VR === 2) { const a = .5 + BRF.phT * .5; cp = _v3.copy(P.pos).addScaledVector(side, Math.cos(a) * 55).addScaledVector(R.dir, -Math.sin(a) * 55).add(_v4.set(0, 9, 0)); k = 1; look = _v5.copy(P.pos); fovN = 46; } // orbiting
+    else if (VR === 3) { const back = 95 + BRF.phT * 42; cp = _v3.copy(P.pos).addScaledVector(R.dir, -back).addScaledVector(side, 10).add(_v4.set(0, 12, 0)); k = 1; look = _v5.copy(P.pos).addScaledVector(R.dir, 20); fovN = 30; } // telephoto
+    else { const back = 28 + BRF.phT * 34; cp = _v3.copy(P.pos).addScaledVector(R.dir, -back).addScaledVector(side, 6 + BRF.phT * 2).add(_v4.set(0, 4 + BRF.phT * 1.5, 0)); look = _v5.copy(P.pos).addScaledVector(R.dir, 30); k = 1; }
+  }
   if (BRF.carrier && BRF.carrier.userData.radar) BRF.carrier.userData.radar.rotation.y += dt * 2.4;
   // never let the lens dip under the ground or the deck
   const floor = Math.max(floorAt(cp.x, cp.z) + (BRF.ph === 'spool' || BRF.ph === 'roll' ? 2 : 9), BRF.carrier && cp.distanceTo(BRF.carrier.position) < 220 ? BRF.carrier.userData.deck + 2 : 0);
@@ -5160,7 +5186,7 @@ function briefUpdate(dt) {
   if (!BRF.camInit || cut) camera.position.copy(cp); else camera.position.lerp(cp, k); BRF.camInit = true;
   camera.up.set(0, 1, 0); if (BRF.ph === 'gear') camera.up.set(0, 1, 0).applyQuaternion(P.quat); camera.lookAt(look);
   if (window.__briefCam && BRF.carrier) { const c = BRF.carrier, w = window.__briefCam; camera.position.copy(c.localToWorld(new V3(...w[0]))); camera.up.set(0, 1, 0); camera.lookAt(c.localToWorld(new V3(...w[1]))); } // test-only
-  const fov = BRF.ph === 'gear' ? 64 : BRF.ph === 'away' ? 44 : 50; if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  const fov = fovN || (BRF.ph === 'gear' ? 64 : BRF.ph === 'away' ? 44 : 50); if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
   if (cut) post.first = true;
   shake = P.throttle > 1 && BRF.ph !== 'away' ? .1 : 0;
   if ((BRF.ph === 'away' && BRF.phT > 4.2 && BRF.li >= BRF.lines.length - 1 && BRF.lt < 1.2) || t > BRF.dur + 6) if (!BRF.ending) endBrief();
@@ -5239,8 +5265,8 @@ function update(dt) {
     fire.emit(d.pos.x, d.pos.y, d.pos.z, 0, 0, 0, .35, 5, 2, 1, .95, .8, 1, .5, .2, 1, 0); smoke.emit(d.pos.x, d.pos.y, d.pos.z, 0, 2, 0, 1.6, 1.5, 6, 1, 1, 1, .85, .85, .85, .5, .2);
     if (d.life <= 0) { d.alive = false; decoys.splice(i, 1); } }
   for (let i = msgs.length - 1; i >= 0; i--) { msgs[i].t -= dt; if (msgs[i].t <= 0) msgs.splice(i, 1); }
-  if (!radioCur && radioQ.length) { radioCur = radioQ.shift(); radioT = radioCur.dur; }
-  if (radioCur) { radioT -= dt; if (radioT <= 0) radioCur = null; }
+  if (!radioCur && radioQ.length) { radioCur = radioQ.shift(); radioT = radioCur.dur; sfxRadio('on'); }
+  if (radioCur) { radioT -= dt; if (radioT <= 0) { radioCur = null; sfxRadio('off'); } }
   if (missionResult) { endTimer -= dt; if (endTimer <= 0) showResult(); }
   return inp;
 }
@@ -5295,12 +5321,79 @@ function showResult() {
   $('#result').hidden = false; (nb && !nb.hidden ? nb : $('#retryBtn')).focus();
   if (SND.ctx) ['engG', 'roarG', 'windG', 'lockG', 'alertG', 'warnG', 'gunG'].forEach(k => SND[k].gain.value = 0);
 }
+/* ================= lobby mail: achievement message → unlock notice (AC6 style) ================= */
+const ACH_MSG = {
+  camp10: ['NIGHTJAR', '全10話、よくやった。落ちない槍は伊達じゃなかったな。…だが戦いはまだ終わっていない。鉄の海岸線で、新たな作戦が待っている。資料はすでに回してある。'],
+  nohit: ['GRIFFON', '1発も被弾せずに帰ってきただと？ 俺でも冷や汗をかく芸当だ。気に入った。特別な装甲をお前にやる。大事に使えよ。'],
+  allS: ['WREN', '全部S評価って…ケストレル、あなた本当に人間？ 整備班がとっておきの塗装を用意したよ。黄金の槍、きっと似合う！'],
+  lowalt: ['NIGHTJAR', '海面すれすれの飛行、累計10分。レーダー網もお前には形無しだな。地を這う鷹にふさわしい機関砲を、整備班から預かってきた。'],
+  msl300: ['GRIFFON', '撃墜300機、か。ミサイルの扱いじゃ、もう俺を超えたな。新型の高機動ミサイルだ。お前なら使いこなせるだろう。'],
+  bomb100: ['NIGHTJAR', '爆撃100個目を確認。容赦がないな。…要塞も艦も貫く特別な爆弾を回す。壊したいものは、山ほどあるだろう？'],
+  rail10: ['WREN', 'レールガンで一直線に撃ち抜いたの、ちゃんと見てたよ！ 威力を引き上げた改良型が届いたから、もっと派手にやっちゃって！'],
+  bossClean: ['NIGHTJAR', 'ボスを被弾なしで撃破…？ 信じられん。お前の腕に見合う、エネルギー効率を高めた新型レーザーを渡そう。'],
+  mpwin10: ['WREN', '対戦10勝、おめでとう！ 勝者だけが着られる塗装を用意しといたよ。次の相手を、思いきり震え上がらせてきて！'],
+  extraAll: ['GRIFFON', '追加章まで全部踏破したか。…もう俺から言うことはない。幽霊みたいに消えて、背後に立つ。そんなお前にぴったりの色を持っていけ。']
+};
+const achKind = rw => /^塗装/.test(rw) ? '塗装' : /^追加装甲/.test(rw) ? '装備' : /^EXTRA/.test(rw) ? '追加章' : '武装';
+const achItem = rw => rw.replace(/^(機銃|塗装)\s*/, '').replace(/が開放$/, '');
+const MAIL = { el: null, q: [], st: 'idle', typed: 0, text: '', timer: 0, busy: false };
+function mailBuild() {
+  if (MAIL.el) return; const st = document.createElement('style');
+  st.textContent = `#amail{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(0,6,5,.82);font-family:inherit;color:#eaf3ee;cursor:pointer;animation:amIn .35s ease}
+@keyframes amIn{from{opacity:0}to{opacity:1}}@keyframes amBlink{50%{opacity:.35}}@keyframes amPop{from{transform:scale(.86);opacity:0}to{transform:scale(1);opacity:1}}@keyframes amShine{from{background-position:-200% 0}to{background-position:200% 0}}
+#amail .am-note{border:1px solid #8dffb4;background:rgba(8,26,20,.92);padding:26px 44px;text-align:center;animation:amPop .3s ease}
+#amail .am-note .big{font:700 30px ui-monospace,Menlo,monospace;letter-spacing:.16em;color:#8dffb4}#amail .am-note .cnt{font:700 22px ui-monospace,Menlo,monospace;color:#ffd36a;margin-left:14px}
+#amail .am-note .env{font-size:34px;display:block;margin-bottom:6px;animation:amBlink 1s infinite}#amail .hint{margin-top:16px;font:12px ui-monospace,Menlo,monospace;color:#8aa399;animation:amBlink 1.4s infinite}
+#amail .am-box{width:min(680px,92vw);border:1px solid #8dffb4;background:rgba(8,26,20,.94);padding:0;animation:amPop .3s ease}
+#amail .am-head{padding:12px 20px;border-bottom:1px solid rgba(141,255,180,.35);display:flex;justify-content:space-between;font:700 13px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:#8dffb4}
+#amail .am-subj{padding:14px 20px 0;font:700 17px ui-monospace,Menlo,monospace;color:#ffd36a}#amail .am-body{padding:12px 20px 22px;font-size:17px;line-height:1.85;min-height:130px}
+#amail .am-foot{padding:0 20px 14px;text-align:right;font:12px ui-monospace,Menlo,monospace;color:#8aa399}
+#amail .am-unl{text-align:center;padding:34px 60px;border:1px solid #ffd36a;background:linear-gradient(180deg,rgba(40,30,6,.95),rgba(10,16,12,.96));animation:amPop .35s ease;min-width:min(560px,90vw)}
+#amail .am-unl .k{font:700 14px ui-monospace,Menlo,monospace;letter-spacing:.3em;color:#ffd36a}#amail .am-unl .it{margin:14px 0 4px;font:700 34px ui-monospace,Menlo,monospace;color:#fff;letter-spacing:.06em;background:linear-gradient(100deg,#fff 30%,#ffd36a 50%,#fff 70%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:amShine 2.2s linear infinite}
+#amail .am-unl .t{font-size:17px;color:#eaf3ee}#achList{gap:10px!important}
+#achList li.ac{display:grid;grid-template-columns:48px 1fr auto;gap:4px 16px;align-items:center;padding:14px 16px;border:1px solid rgba(141,255,180,.28);background:rgba(255,255,255,.03);opacity:1!important}
+#achList li.ac.ok{border-color:#8dffb4;background:rgba(141,255,180,.09)}#achList li.ac .ai{grid-row:1/3;font-size:28px;text-align:center}#achList li.ac.lock .ai{filter:grayscale(1);opacity:.7}
+#achList li.ac .ab{grid-column:2;grid-row:1/3;min-width:0}#achList li.ac .an{font:700 17px ui-monospace,Menlo,monospace;color:#eaf3ee;margin-bottom:3px}#achList li.ac.ok .an{color:#8dffb4}
+#achList li.ac .ad{font-size:14px;line-height:1.55;color:#c8d8d0;grid-column:auto}
+#achList li.ac .apr{display:flex;align-items:center;gap:10px;margin-top:8px}#achList li.ac .apr i{flex:1;height:8px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden}#achList li.ac .apr b{display:block;height:100%;background:linear-gradient(90deg,#4fcf86,#8dffb4)}#achList li.ac .apr span{font:13px ui-monospace,Menlo,monospace;color:#c8d8d0;white-space:nowrap}
+#achList li.ac .ar{grid-column:3;grid-row:1/3;align-self:center;text-align:right;max-width:200px;display:flex;flex-direction:column;gap:4px}#achList li.ac .ar small{font:11px ui-monospace,Menlo,monospace;letter-spacing:.12em;color:#8aa399}#achList li.ac .ar b{font:700 13.5px ui-monospace,Menlo,monospace;color:#ffd36a;border:1px solid rgba(255,211,106,.5);padding:5px 9px;line-height:1.4}
+@media(max-width:560px){#achList li.ac{grid-template-columns:40px 1fr}#achList li.ac .ar{grid-column:2;grid-row:auto;text-align:left;max-width:none;flex-direction:row;align-items:center;gap:8px}}`;
+  document.head.append(st); const el = document.createElement('div'); el.id = 'amail'; el.hidden = true; document.body.append(el); MAIL.el = el;
+  el.addEventListener('click', mailNext); addEventListener('keydown', e => { if (!MAIL.busy) return; if (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); if (e.code === 'Escape') mailEnd(); else mailNext(); } }, true);
+}
+function showAchMail() {
+  if (MAIL.busy || !ACH.pend.length || state !== 'title') return; mailBuild();
+  MAIL.q = ACH.pend.filter(id => ACH_DEF.some(a => a.id === id)); ACH.pend = []; achSave(); if (!MAIL.q.length) return;
+  MAIL.busy = true; MAIL.idx = 0; MAIL.el.hidden = false; MAIL.st = 'notice';
+  MAIL.el.innerHTML = `<div class="am-note"><span class="env">✉</span><span class="big">NEW MESSAGE</span><span class="cnt">${MAIL.q.length}件</span><div class="hint">CLICK / ENTER で開く</div></div>`;
+  sfxTone(880, 880, .14, .09, 'sine'); setTimeout(() => sfxTone(1320, 1320, .3, .09, 'sine'), 150); setTimeout(() => sfxRadio('on'), 60);
+}
+function mailNext() {
+  if (!MAIL.busy) return; const a = ACH_DEF.find(x => x.id === MAIL.q[MAIL.idx]);
+  if (MAIL.st === 'notice') { sfxRadio('on'); mailOpen(a); }
+  else if (MAIL.st === 'msg') { if (MAIL.typed < MAIL.text.length) { MAIL.typed = MAIL.text.length; mailTick(true); } else { sfxRadio('off'); mailUnlock(a); } }
+  else if (MAIL.st === 'unlock') { MAIL.idx++; if (MAIL.idx >= MAIL.q.length) mailEnd(); else { sfxRadio('on'); mailOpen(ACH_DEF.find(x => x.id === MAIL.q[MAIL.idx])); } }
+}
+function mailOpen(a) {
+  const m = ACH_MSG[a.id] || ['NIGHTJAR', `実績「${a.n}」を達成した。報酬を受け取ってくれ。`];
+  MAIL.st = 'msg'; MAIL.text = m[1]; MAIL.typed = 0; clearInterval(MAIL.timer);
+  MAIL.el.innerHTML = `<div class="am-box"><div class="am-head"><span>FROM: ${m[0]}</span><span>${MAIL.idx + 1} / ${MAIL.q.length}</span></div><div class="am-subj">実績達成 — ${a.n}</div><div class="am-body" id="amBody"></div><div class="am-foot">CLICK / ENTER で次へ</div></div>`;
+  MAIL.timer = setInterval(() => { MAIL.typed += 1; mailTick(); }, 38);
+}
+function mailTick(done) { const b = document.getElementById('amBody'); if (!b) return; b.textContent = MAIL.text.slice(0, MAIL.typed); if (MAIL.typed % 3 === 0 && !done) sfxTone(2200, 2000, .02, .018, 'square'); if (MAIL.typed >= MAIL.text.length) clearInterval(MAIL.timer); }
+function mailUnlock(a) {
+  clearInterval(MAIL.timer); MAIL.st = 'unlock'; const k = achKind(a.rw);
+  MAIL.el.innerHTML = `<div class="am-unl"><div class="k">${k === '追加章' ? 'NEW CHAPTER' : 'UNLOCKED'}</div><div class="it">${achItem(a.rw)}</div><div class="t">${k}：${achItem(a.rw)} を${k === '追加章' ? '解放' : '解除'}しました</div><div class="am-foot" style="margin-top:18px;padding:0;text-align:center">${MAIL.idx + 1 < MAIL.q.length ? 'CLICK / ENTER で次のメッセージへ' : 'CLICK / ENTER で閉じる'}</div></div>`;
+  [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => sfxTone(f, f, .5, .08, 'triangle'), i * 110)); sfxNoise(.5, 3000, .05, 'highpass');
+}
+function mailEnd() { clearInterval(MAIL.timer); MAIL.busy = false; MAIL.st = 'idle'; MAIL.el.hidden = true; MAIL.el.innerHTML = ''; try { renderMenuHangar(); } catch (e) {} }
 function toTitle() {
   hideMpResult(); menuFocus(); netLeave(); mode = 'mission'; $('#tut').hidden = true; $('#lobby').hidden = true; $('#mroom').hidden = true; setGuide(false, true);
   clearMission(); campClear(); CAMP.m = null; setMap('home'); state = 'title'; $('#camp').hidden = true; $('#result').hidden = true; $('#pause').hidden = true; $('#touch').hidden = true; $('#title').hidden = false;
   player.pos.set(0, 3000, 14500); player.quat.identity(); player.alive = true; player.mesh.visible = true; timeScale = 1;
   player.mesh.userData.pylons.forEach(p => p.visible = true);
   if (SND.ctx) { SND.ctx.resume(); ['engG', 'roarG', 'windG', 'lockG', 'alertG', 'warnG', 'gunG'].forEach(k => SND[k].gain.value = 0); }
+  setTimeout(showAchMail, 1100);
 }
 function readOpts() { invert = $('#optInvert').checked; blurOn = $('#optBlur').checked; opts.beginner = $('#optBeginner').checked; opts.lockMode = $('#optLock').value; opts.guide = $('#optGuide').checked; $('#fpsMeter').hidden = !$('#optFps').checked; applyQuality($('#optQuality').value); }
 // ---- main menu: hover/focus shows the matching detail sheet; arrow keys move between items
@@ -5393,9 +5486,9 @@ applyQuality(quality);
 try { $('#fpsMeter').hidden = !$('#optFps').checked; const qb = $('#qualityBtn'); if (qb) qb.textContent = '描画モード：' + (quality === 'low' ? 'FPS重視' : 'グラフィック重視'); } catch (e) {}
 player.pos.set(0, 3000, 14500);
 resize();
-updateLoadoutSummary(); menuFocus();
+updateLoadoutSummary(); menuFocus(); setTimeout(showAchMail, 1500);
 // test hook, local dev server only
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { enemyMesh, makeLandshipMesh, makeFactoryMesh, makeAirbase, get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { showAchMail, sfxRadio, startBrief, enemyMesh, makeLandshipMesh, makeFactoryMesh, makeAirbase, get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
 requestAnimationFrame(frame);
 })();
 </script>
