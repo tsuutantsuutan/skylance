@@ -108,6 +108,11 @@ kbd{font:12px var(--mono);color:var(--ink);border:1px solid var(--hud-dim);paddi
 .result .verdict.fail{color:var(--warn)}
 .stats{display:grid;grid-template-columns:1fr auto;gap:7px 20px;font:15px var(--mono);margin:0 0 18px;font-variant-numeric:tabular-nums}
 #mresTbl{width:100%;border-collapse:collapse;font:14px var(--mono);margin:0 0 18px;font-variant-numeric:tabular-nums}#mresTbl th{color:var(--muted);font-weight:400;text-align:right;padding:4px 8px;border-bottom:1px solid var(--hud-dim)}#mresTbl td{text-align:right;padding:6px 8px}#mresTbl th:first-child,#mresTbl td:first-child{text-align:left}#mresTbl tr.me td{background:rgba(127,214,255,.1)}
+#achList{list-style:none;margin:0 0 16px;padding:0;display:grid;gap:8px}#achList li{display:grid;grid-template-columns:1fr auto;gap:2px 14px;padding:9px 12px;border:1px solid var(--hud-dim);opacity:.78}
+#achList li.ok{opacity:1;border-color:var(--hud);background:rgba(141,255,180,.07)}#achList .an{font:700 14px var(--mono);color:var(--hud)}#achList .ad{grid-column:1;font-size:12.5px;color:var(--ink)}#achList .ar{grid-column:2;grid-row:1/3;align-self:center;font:12px var(--mono);color:#ffd36a;text-align:right;max-width:190px}
+#achList .ap{grid-column:1;height:5px;background:rgba(255,255,255,.1);display:block}#achList .ap b{display:block;height:100%;background:var(--hud)}#achList em{grid-column:1;font:11px var(--mono);color:var(--muted);font-style:normal}
+.cl-sep{font:700 11px var(--mono);letter-spacing:.2em;color:#ffd36a;margin:12px 0 4px;padding-top:8px;border-top:1px solid var(--hud-dim)}#cbLock{align-items:center;gap:8px;flex-wrap:wrap}
+.segb.locked{opacity:.42;cursor:not-allowed}
 .stats dt{color:var(--muted)}.stats dd{margin:0;text-align:right}
 .rank{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--hud-dim);padding-top:14px;margin-bottom:18px}
 .rank span{font:12px var(--mono);letter-spacing:.2em;color:var(--muted)}
@@ -310,7 +315,8 @@ canvas,img{-webkit-touch-callout:none;-webkit-user-drag:none;user-select:none}
         <h2 class="md-title" id="cbTitle"></h2>
         <p class="cb-story" id="cbStory"></p>
         <dl class="md-facts" id="cbFacts"></dl>
-        <div class="row"><button class="btn" id="cbGo">出撃</button><button class="btn ghost" id="cbBack">戻る</button></div>
+        <div class="row" id="cbLock" hidden></div>
+        <div class="row"><button class="btn" id="cbGo">出撃</button><button class="btn ghost sm" id="cbAch">🏆 実績</button><button class="btn ghost" id="cbBack">戻る</button></div>
       </div>
     </div>
   </div>
@@ -349,7 +355,7 @@ canvas,img{-webkit-touch-callout:none;-webkit-user-drag:none;user-select:none}
     <div id="hgParts"></div>
     <div id="hgStats" aria-label="性能"></div>
     <p class="note" id="hgWarn" role="status"></p>
-    <button class="btn" id="hgDone">決定</button>
+    <div class="row"><button class="btn ghost sm" id="hgAch">🏆 実績・解放状況</button><button class="btn" id="hgDone">決定</button></div>
   </div>
 </section>
 
@@ -364,6 +370,14 @@ canvas,img{-webkit-touch-callout:none;-webkit-user-drag:none;user-select:none}
     <p class="note" id="mrRule"></p>
     <div class="row"><button class="btn ghost sm" id="mrRes">前回の結果を見る</button></div>
     <div class="row"><button class="btn" id="readyBtn">準備OK</button><button class="btn ghost" id="mrLeave">退出</button></div>
+  </div>
+</section>
+
+<section id="ach" class="screen" hidden style="z-index:61;background:rgba(0,6,5,.78)">
+  <div class="panel result" style="min-width:min(640px,94vw);max-height:90vh;overflow:auto">
+    <h2><span>Achievements</span><span id="achSub"></span></h2>
+    <ul id="achList"></ul>
+    <div class="row"><button class="btn" id="achClose">閉じる</button></div>
   </div>
 </section>
 
@@ -1514,7 +1528,7 @@ addEventListener('keydown', e => {
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 // mouse buttons: Mouse0 left, Mouse1 middle, Mouse2 right, Mouse3/4 side buttons — handled exactly like keys
-const MOUSE_UI = '#mres,#title,#hangar,#camp,#lobby,#mroom,#pause,#result,#tut,#brief,button,input,select,label,a,.kb-key';
+const MOUSE_UI = '#ach,#mres,#title,#hangar,#camp,#lobby,#mroom,#pause,#result,#tut,#brief,button,input,select,label,a,.kb-key';
 addEventListener('mousedown', e => {
   const code = 'Mouse' + e.button;
   if (KB.capture) { e.preventDefault(); e.stopPropagation(); kbCapture({ code, repeat: false, preventDefault() {}, stopPropagation() {} }); return; }
@@ -1620,23 +1634,62 @@ const PARTS = {
     { id: 'rkt', n: 'RKT', d: 'ロケット8発を一斉発射。無誘導だが近距離で強烈', w: 25, ammo: 14, cd: 1.2, range: 2500, cone: .2, lock: 99, vd: 14, kind: 'rocket' },
     { id: 'ugb', n: 'UGB', d: '無誘導爆弾。爆風で周りの敵や地上施設をまとめて吹き飛ばす', w: 30, ammo: 16, cd: .8, range: 3000, cone: .3, lock: 99, vd: 30, kind: 'bomb' },
     { id: 'tls', n: 'TLS', d: '押しっぱなしで照射する戦術レーザー。照準に重ねて焼き切る（エネルギー20秒）', w: 45, ammo: 20, cd: 0, range: 3500, cone: .08, lock: 99, vd: 45, kind: 'laser' },
-    { id: 'eml', n: 'EML', d: 'レールガン。超高速弾が一直線に貫く。照準をしっかり合わせて', w: 40, ammo: 14, cd: 1.4, range: 7000, cone: .05, lock: 99, vd: 80, kind: 'rail' }],
+    { id: 'eml', n: 'EML', d: 'レールガン。太い超高速弾が一直線に貫き、後ろに重なった目標（最大5体）まで撃ち抜く', w: 40, ammo: 14, cd: 1.4, range: 7000, cone: .05, lock: 99, vd: 80, kind: 'rail', dmg: 520, pierce: 5, fat: 12 },
+    // ---- unlocked by achievements ----
+    { id: 'qaamr', n: 'QAAM-R', d: '【実績】QAAMの改良型。旋回、射程、威力すべてが強化された高機動ミサイル', w: 34, ammo: 18, cd: 1.1, range: 4400, cone: .66, lock: .3, turn: 5.2, spd: 800, acc: 520, life: 7, vd: 38, dmg: 130, ach: 'msl300' },
+    { id: 'bnk', n: 'BNK', d: '【実績】貫通爆弾。装甲を貫いて大爆発。爆風はUGBの1.5倍、装甲目標（戦艦・空母・ボス）には2.5倍のダメージ。ただし6発だけ', w: 50, ammo: 6, cd: 1.3, range: 3000, cone: .3, lock: 99, vd: 55, kind: 'bomb', dmg: 520, rad: 210, amul: 2.5, ach: 'bomb100' },
+    { id: 'emlx', n: 'EML-II', d: '【実績】レールガン改。威力800、弾がさらに太く、最大6体まで貫通する', w: 45, ammo: 14, cd: 1.2, range: 8000, cone: .05, lock: 99, vd: 110, kind: 'rail', dmg: 800, pierce: 6, fat: 22, ach: 'rail10' },
+    { id: 'tlsx', n: 'TLS-X', d: '【実績】戦術レーザー改。出力が高く、エネルギーも30秒もつ', w: 50, ammo: 30, cd: 0, range: 4200, cone: .08, lock: 99, vd: 60, kind: 'laser', dps: 260, ach: 'bossClean' }],
   gun: [
     { id: 'm61', n: 'M61 20mm', d: '連射速度が高い標準機関砲', w: 10, rate: 26, dmg: 9, vd: 5, spd: 1300 },
     { id: 'gau', n: 'GAU 30mm', d: '連射は遅いが一発が重い', w: 20, rate: 14, dmg: 20, vd: 11, spd: 1150 },
-    { id: 'pulse', n: 'PULSE', d: 'パルスレーザー機関砲。弾がほぼ一瞬で届くのでとても当てやすい', w: 25, rate: 18, dmg: 12, vd: 6, spd: 2600 }],
+    { id: 'pulse', n: 'PULSE', d: 'パルスレーザー機関砲。弾がほぼ一瞬で届くのでとても当てやすい', w: 25, rate: 18, dmg: 12, vd: 6, spd: 2600 },
+    { id: 'gau8', n: 'GAU-8 ROTARY', d: '【実績】7銃身の回転機関砲。連射も威力も高い重量級', w: 35, rate: 30, dmg: 17, vd: 9, spd: 1250, ach: 'lowalt' }],
   armor: [
     { id: 'none', n: 'なし', d: '追加装甲なし', w: 0, hp: 0, turn: 0 },
     { id: 'a1', n: '追加装甲 I', d: '耐久 +15%／旋回 -3%', w: 20, hp: .15, turn: -.03 },
-    { id: 'a2', n: '追加装甲 II', d: '耐久 +35%／旋回 -7%', w: 40, hp: .35, turn: -.07 }],
+    { id: 'a2', n: '追加装甲 II', d: '耐久 +35%／旋回 -7%', w: 40, hp: .35, turn: -.07 },
+    { id: 'a3', n: '追加装甲 III', d: '【実績】耐久 +55%／旋回 -11%', w: 60, hp: .55, turn: -.11, ach: 'nohit' }],
   paint: [
     { n: 'GRAY GHOST', body: 0x9aa5ae, dark: 0x5f6870, tail: 0x2d4a6a }, { n: 'DESERT', body: 0xb9a882, dark: 0x7a6a4a, tail: 0x8a4a1c },
     { n: 'NAVY', body: 0x5a6f8c, dark: 0x2e3a4c, tail: 0xd8d8d8 }, { n: 'CRIMSON', body: 0x8c3a3a, dark: 0x3a2020, tail: 0x1a1a1a },
-    { n: 'ARCTIC', body: 0xdfe6ea, dark: 0x9aa5ae, tail: 0x2d7ab8 }, { n: 'NIGHT', body: 0x26282d, dark: 0x15161a, tail: 0xd9b229 }, { n: 'CUSTOM', custom: true }]
+    { n: 'ARCTIC', body: 0xdfe6ea, dark: 0x9aa5ae, tail: 0x2d7ab8 }, { n: 'NIGHT', body: 0x26282d, dark: 0x15161a, tail: 0xd9b229 }, { n: 'CUSTOM', custom: true },
+    { n: 'GOLDEN LANCE', body: 0xd9b84a, dark: 0x6b5520, tail: 0x1a1a1a, ach: 'allS' }, { n: 'VERSUS', body: 0x2f3b4a, dark: 0x151a21, tail: 0xff6a3d, ach: 'mpwin10' }, { n: 'PHANTOM', body: 0x3a2e4f, dark: 0x1a1426, tail: 0x8dffb4, ach: 'extraAll' }]
 };
+
+/* ================= achievements: special parts are unlocked by playing ================= */
+const ACH = { u: {}, c: {}, session: [] };
+const campSave_init = () => { try { return (JSON.parse(localStorage.getItem('skylance-camp') || '{}').cleared || 0) >= 10; } catch (e) { return false; } };
+try { const a = JSON.parse(localStorage.getItem('skylance-ach') || '{}'); if (a.u) ACH.u = a.u; if (a.c) ACH.c = a.c; } catch (e) {}
+const achSave = () => { try { localStorage.setItem('skylance-ach', JSON.stringify({ u: ACH.u, c: ACH.c })); } catch (e) {} };
+const ACH_DEF = [
+  { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全5話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
+  { id: 'nohit', n: '無傷の槍', d: '1回も被弾せずにミッションをクリア', rw: '追加装甲 III' },
+  { id: 'allS', n: '全話S評価', d: 'キャンペーン全10話でS評価を取る', rw: '塗装 GOLDEN LANCE', pr: () => [Object.values(campSave.get().ranks || {}).filter(r => r === 'S').length, 10] },
+  { id: 'lowalt', n: '地を這う鷹', d: '低空（高度150m以下）の飛行が累計10分', rw: '機銃 GAU-8 ROTARY', cnt: 'low', need: 600, fmt: v => Math.floor(v / 60) + ' / 10分' },
+  { id: 'msl300', n: 'ミサイルの名手', d: 'ミサイルで敵機を累計300機撃墜', rw: 'QAAM-R', cnt: 'mslKill', need: 300 },
+  { id: 'bomb100', n: '爆撃王', d: '爆弾で地上目標を累計100個破壊', rw: 'BNK 貫通爆弾', cnt: 'bombKill', need: 100 },
+  { id: 'rail10', n: '一閃', d: 'レールガンの貫通で累計10体撃破（先頭の目標以外）', rw: 'EML-II', cnt: 'railKill', need: 10 },
+  { id: 'bossClean', n: 'ノーダメージ撃破', d: '被弾せずにボスを撃破', rw: 'TLS-X' },
+  { id: 'mpwin10', n: '対戦の覇者', d: 'マルチ対戦で累計10勝', rw: '塗装 VERSUS', cnt: 'mpWin', need: 10 },
+  { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全5話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 5] }];
+if (campSave_init()) ACH.u.camp10 = ACH.u.camp10 || Date.now();
+const achHas = id => !!ACH.u[id];
+const partLocked = pt => !!(pt && pt.ach && !ACH.u[pt.ach]);
+const achOn = () => !opts.beginner && mode !== 'tutorial' && mode !== 'multi';
+function achUnlock(id) {
+  if (ACH.u[id]) return; const a = ACH_DEF.find(x => x.id === id); if (!a) return;
+  ACH.u[id] = Date.now(); achSave(); ACH.session.push(a);
+  try { showMsg('ACHIEVEMENT  ' + a.n, AMBER, 4.5, true); radio('NIGHTJAR', `実績「${a.n}」を達成。解放：${a.rw}。`, 5, true); sfxTone(660, 1320, .4, .12, 'triangle'); } catch (e) {}
+}
+function achAdd(key, n = 1, force) {
+  if (!force && !achOn()) return; ACH.c[key] = (ACH.c[key] || 0) + n;
+  for (const a of ACH_DEF) if (a.cnt === key && !ACH.u[a.id] && ACH.c[key] >= a.need) achUnlock(a.id);
+  if (key !== 'low' || ACH.c.low % 15 < n) achSave();
+}
 const LO = { frame: 0, engine: 0, special: 0, gun: 0, armor: 0, paint: 0, custom: { body: '#9aa5ae', dark: '#5f6870', tail: '#2d4a6a' } };
 const HEX = /^#[0-9a-f]{6}$/i;
-try { const sv = JSON.parse(localStorage.getItem('skylance-loadout') || '{}'); for (const k in LO) if (k !== 'custom' && Number.isInteger(sv[k]) && PARTS[k][sv[k]]) LO[k] = sv[k];
+try { const sv = JSON.parse(localStorage.getItem('skylance-loadout') || '{}'); for (const k in LO) if (k !== 'custom' && Number.isInteger(sv[k]) && PARTS[k][sv[k]] && !partLocked(PARTS[k][sv[k]])) LO[k] = sv[k];
   if (sv.custom) for (const c of ['body', 'dark', 'tail']) if (HEX.test(sv.custom[c] || '')) LO.custom[c] = sv.custom[c]; } catch (e) {}
 const saveLoadout = () => { try { localStorage.setItem('skylance-loadout', JSON.stringify(LO)); } catch (e) {} };
 function paintColors() { const p = part('paint'); return p.custom ? { body: parseInt(LO.custom.body.slice(1), 16), dark: parseInt(LO.custom.dark.slice(1), 16), tail: parseInt(LO.custom.tail.slice(1), 16) } : { body: p.body, dark: p.dark, tail: p.tail }; }
@@ -1747,7 +1800,7 @@ function placeGround() {
 function startMission() {
   mode = 'mission';
   clearMission(); campClear(); CAMP.m = null; setMap('home');
-  state = 'play'; missionTime = 0; timeLeft = 720; score = 0; kills = 0; phase = 1; endTimer = 0; missionResult = null; shake = 0; outTimer = 0;
+  state = 'play'; missionTime = 0; timeLeft = 720; score = 0; kills = 0; phase = 1; endTimer = 0; missionResult = null; shake = 0; outTimer = 0; missionHurt = false; ACH.session.length = 0;
   timeScale = 1; slowmoT = 0; lastKillT = -99; chain = 0;
   Object.assign(player, { speed: 260, prevSpeed: 260, throttle: .55, cp: 0, cr: 0, cy: 0, hp: refreshLoadout(), alive: true, msl: 64, gun: 1600, flares: 24, pylon: [0, 0, 0, 0], nextPylon: 0, flareCd: 0, maxG: 1 });
   player.pos.set(0, 3000, 14500); player.quat.identity(); player.velDir.set(0, 0, -1); player.mesh.visible = true;
@@ -1771,12 +1824,12 @@ function spawnPhase2() {
   radio('VANTA', 'ケストレルとかいうのはお前か。俺の空で好き勝手やってくれたな。', 4.5);
 }
 const hidden = t => t.stealth && t.pos.distanceTo(player.pos) > 3000;
-function aliveTargets() { const out = []; for (const e of enemies) if (e.alive && !hidden(e)) out.push(e); for (const g of grounds) if (g.alive) out.push(g); if (mode === 'multi') { for (const o of remotes.values()) if (o.alive && !isAlly(o)) out.push(o); for (const q of puppets.values()) if (q.alive && !hidden(q)) out.push(q); } return out; }
+function aliveTargets() { const out = []; for (const e of enemies) if (e.alive && !hidden(e)) out.push(e); for (const g of grounds) if (g.alive && !g.friend) out.push(g); if (mode === 'multi') { for (const o of remotes.values()) if (o.alive && !isAlly(o)) out.push(o); for (const q of puppets.values()) if (q.alive && !hidden(q)) out.push(q); } return out; }
 function checkPhase() {
   if (missionResult || mode !== 'mission' || CAMP.m) return;
   if (phase === 1 && aliveTargets().length === 0) after(1.5, spawnPhase2);
   else if (phase === 2 && aliveTargets().length === 0) {
-    missionResult = 'win'; endTimer = 6;
+    missionResult = 'win'; endTimer = 6; if (achOn() && !missionHurt) achUnlock('nohit');
     showMsg('MISSION ACCOMPLISHED', HUDC, 6, true);
     radio('NIGHTJAR', '全目標の撃破を確認。作戦成功だ、ケストレル1。帰還せよ。', 5, true);
   }
@@ -1891,7 +1944,8 @@ function updateStreaks() {
 }
 
 /* ================= combat ================= */
-function damage(t, amt, byMissile, vamt) {
+let lastSrc = '', missionHurt = false;
+function damage(t, amt, byMissile, vamt, src) {
   if (!t.alive) return;
   if (t.shield) { if (byMissile) showMsg('SHIELD', HUDD, 1); return; }
   if (t.remote) { // the victim's own client applies damage; we only report the hit
@@ -1907,12 +1961,13 @@ function damage(t, amt, byMissile, vamt) {
     return;
   }
   if (t.retreatAt && !t.retreating) { t.hp = Math.max(t.hp - amt, t.maxHp * t.retreatAt - 1); if (byMissile) { showMsg('HIT', HUDC); shake = Math.max(shake, .3); } return; } // story aces break off instead of dying
-  t.hp -= amt;
+  if (src === 'missile' && t.msl != null) amt *= t.msl; // armoured targets shrug off missiles
+  lastSrc = src || ''; t.hp -= amt;
   if (t.hp <= 0) destroy(t, true);
   else if (byMissile) { showMsg('HIT', HUDC); shake = Math.max(shake, .3); }
 }
 function destroy(t, byPlayer) {
-  t.alive = false;
+  t.alive = false; if (byPlayer) achOnKill(t, lastSrc); lastSrc = '';
   explode(t.pos, t.isBoss ? 3 : t.kind === 'air' ? 1.25 : 1.6);
   if (byPlayer || t.kind === 'air') {
     score += t.score; kills++; if (mode === 'multi' && NET.mt && NET.mt.mode === 'coop') NET.mt.sc = (NET.mt.sc || 0) + t.score;
@@ -2005,7 +2060,7 @@ function fireSpecial() {
   if (sp.kind === 'bomb') {
     P.sp--; P.spCd = sp.cd; _v1.set(0, -1.6, 0).applyQuaternion(P.quat).add(P.pos);
     const m = launchMissile(null, _v1, P.fwd, P.speed, null, 'player', P.up, 999, P.vel, 3);
-    Object.assign(m, { bomb: true, life: 40, dmg: 260, vdmg: sp.vd }); m.mesh.geometry = bombGeo; m.exh.visible = false; sfxNoise(.3, 300, .3, 'lowpass'); return;
+    Object.assign(m, { bomb: true, life: 40, dmg: sp.dmg || 260, rad: sp.rad || 140, amul: sp.amul || 1, vdmg: sp.vd }); m.mesh.geometry = bombGeo; m.exh.visible = false; sfxNoise(.3, 300, .3, 'lowpass'); return;
   }
   if (sp.kind === 'rail') { P.sp--; P.spCd = sp.cd; fireRail(); return; }
   const inEnv = t => t && t.alive && t.pos.distanceTo(P.pos) < sp.range && P.fwd.angleTo(_v4.subVectors(t.pos, P.pos)) < sp.cone;
@@ -2015,7 +2070,7 @@ function fireSpecial() {
   targets.forEach((t, k) => {
     _v1.set((k % 2 ? 1 : -1) * (1.2 + (k >> 1) * 1.6), -1.3, 1).applyQuaternion(P.quat).add(P.pos);
     const m = launchMissile(null, _v1, P.fwd, P.speed, t, 'player', P.up, .18 + k * .06, P.vel, 7);
-    Object.assign(m, { turn: sp.turn, maxSpeed: sp.spd, acc: sp.acc, life: sp.life, dmg: 100, vdmg: sp.vd });
+    Object.assign(m, { turn: sp.turn, maxSpeed: sp.spd, acc: sp.acc, life: sp.life, dmg: sp.dmg || 100, vdmg: sp.vd });
   });
   P.mlocks = [];
 }
@@ -2033,11 +2088,16 @@ function rayHit(start, dir, range, slack) {
   return [best, bd];
 }
 function fireRail() {
-  const P = player, sp = ST.sp, start = _v6.copy(P.pos).addScaledVector(P.fwd, 9).addScaledVector(P.up, -1);
-  const [t, d] = rayHit(start, P.fwd, sp.range, .008), end = start.clone().addScaledVector(P.fwd, d);
+  const P = player, sp = ST.sp, start = P.pos.clone().addScaledVector(P.fwd, 9).addScaledVector(P.up, -1), dir = P.fwd.clone();
+  // terrain stops the slug; everything within the (fat) beam before that gets hit, nearest first
+  let dT = sp.range; for (let d = 150; d < sp.range; d += 150) { _v3.copy(start).addScaledVector(dir, d); if (_v3.y < floorAt(_v3.x, _v3.z)) { dT = d; break; } }
+  const hits = []; for (const t of aliveTargets()) { _v2.subVectors(t.pos, start); const along = _v2.dot(dir); if (along < 0 || along > dT) continue;
+    if (_v2.addScaledVector(dir, -along).length() < (t.radius || 15) * .9 + (sp.fat || 8) + along * .012) hits.push([t, along]); }
+  hits.sort((a, b) => a[1] - b[1]); hits.length = Math.min(hits.length, sp.pierce || 1);
+  const endD = hits.length ? (hits.length >= (sp.pierce || 1) ? hits[hits.length - 1][1] : Math.min(dT, sp.range)) : dT, end = start.clone().addScaledVector(dir, endD);
   let bm = railBeams.find(x => !x.visible); if (!bm) { bm = makeBeam(new THREE.Color(1.2, 3.5, 7)); railBeams.push(bm); }
-  placeBeam(bm, start, end, 1.1); bm.material.opacity = 1; bm.userData.t = .22;
-  if (t) { damage(t, 320, true, sp.vd); hitSpark(end); explode(end, .45, false); }
+  placeBeam(bm, start, end, 1.1 + (sp.fat || 8) * .03); bm.material.opacity = 1; bm.userData.t = .22;
+  hits.forEach(([t, al], i) => { const hp = start.clone().addScaledVector(dir, al); damage(t, (sp.dmg || 520) * (1 - .08 * i), true, sp.vd, i ? 'rail2' : 'rail'); hitSpark(hp); explode(hp, .45, false); });
   sfxTone(2600, 160, .4, .2, 'sawtooth'); sfxNoise(.3, 3000, .3, 'highpass'); shake = Math.max(shake, .45); fx.flash = Math.max(fx.flash, .06);
 }
 function updateBeams(dt, inp) {
@@ -2052,7 +2112,7 @@ function updateBeams(dt, inp) {
   const flick = .8 + Math.random() * .4; placeBeam(laser.mesh, start, end, .35 * flick); placeBeam(laser.glow, start, end, 1.4 * flick);
   fire.emit(end.x, end.y, end.z, rand(-20, 20), rand(-20, 20), rand(-20, 20), .2, 3, 7, 1, .6, .4, 1, .2, .1, 1, 1);
   laser.tick -= dt;
-  if (laser.tick <= 0) { laser.tick = .12; if (t) { damage(t, 160 * .12, false, sp.vd * .12); hitMarkT = .08; } if (SND.ctx && !SND.muted) sfxTone(880, 860, .12, .03, 'sawtooth'); }
+  if (laser.tick <= 0) { laser.tick = .12; if (t) { damage(t, (sp.dps || 160) * .12, false, sp.vd * .12, 'laser'); hitMarkT = .08; } if (SND.ctx && !SND.muted) sfxTone(880, 860, .12, .03, 'sawtooth'); }
 }
 function playerFireMissile() {
   if (player.frozen) return;
@@ -2118,7 +2178,7 @@ function updateMissiles(dt) {
     if (m.owner === 'player') {
       if (m.target) { if (segPointDist(m.prev, m.pos, m.target.pos) < Math.max(m.target.kind === 'air' ? 20 : 30, (m.target.radius || 0) * .9)) hit = m.target; }
       else for (const t of aliveTargets()) if (segPointDist(m.prev, m.pos, t.pos) < Math.max(m.rocket ? 22 : 18, (t.radius || 0) * .9)) { hit = t; break; }
-      if (!hit && !m.target) for (const g of grounds) if (g.alive && segPointDist(m.prev, m.pos, g.pos) < 28) { hit = g; break; }
+      if (!hit && !m.target) for (const g of grounds) if (g.alive && !g.friend && segPointDist(m.prev, m.pos, g.pos) < Math.max(28, (g.radius || 0) * .9)) { hit = g; break; }
     } else if (m.owner === 'ally') { if (m.target && m.target.alive && segPointDist(m.prev, m.pos, m.target.pos) < Math.max(22, (m.target.radius || 0) * .9)) hit = m.target; }
     else if (m.target && m.target.escort) { if (m.target.alive && segPointDist(m.prev, m.pos, m.target.pos) < 26) { hurtEscort(m.target, 34); removeMissile(i); continue; } }
     else if (player.alive && m.target === player && segPointDist(m.prev, m.pos, player.pos) < 17) hit = player;
@@ -2127,21 +2187,29 @@ function updateMissiles(dt) {
     const gh = floorAt(m.pos.x, m.pos.z);
     if (hit) {
       if (hit === player) { explode(m.pos, .7); damagePlayer(mode === 'multi' ? coopMissileDmg() : 34); }
-      else { explode(m.pos, .6, false); damage(hit, m.dmg || 100, true, m.vdmg); }
+      else { explode(m.pos, .6, false); damage(hit, m.dmg || 100, true, m.vdmg, 'missile'); }
       removeMissile(i); continue;
     }
-    if (m.pos.y < gh + 1) { explode(m.pos, .5, false); if (m.owner === 'player') { for (const g of grounds) if (g.alive && g.pos.distanceTo(m.pos) < 45) { damage(g, 100, true); break; } } removeMissile(i); continue; }
+    if (m.pos.y < gh + 1) { explode(m.pos, .5, false); if (m.owner === 'player') { for (const g of grounds) if (g.alive && !g.friend && g.pos.distanceTo(m.pos) < Math.max(45, (g.radius || 0) * .8)) { damage(g, 100, true, null, 'missile'); break; } } removeMissile(i); continue; }
     if (m.life <= 0) { puff(m.pos, 8, 6, .55); if (m.owner === 'player' && m.target) showMsg('MISSED', HUDD); removeMissile(i); continue; }
   }
 }
 function bombBlast(p, m) {
-  explode(p, 2.2); shockwave(p, 160, .7, new THREE.Color(1.8, 1.1, .5));
-  for (const t of aliveTargets()) { const d = t.pos.distanceTo(p); if (d < 140) damage(t, m.dmg * (1 - d / 280), true, m.vdmg); }
+  const R = m.rad || 140, k = R / 140; explode(p, 2.2 * Math.min(k, 1.6)); shockwave(p, 160 * k, .7, new THREE.Color(1.8, 1.1, .5));
+  for (const t of aliveTargets()) { const d = Math.max(0, t.pos.distanceTo(p) - (t.radius || 0) * .7);
+    if (d < R) damage(t, m.dmg * (1 - d / (R * 2)) * ((t.armor || t.isBoss || t.boss) ? (m.amul || 1) : 1), true, m.vdmg, 'bomb'); }
+}
+function achOnKill(t, src) {
+  if (!achOn()) return;
+  if (t.kind === 'air' && src === 'missile' && !t.cruise) achAdd('mslKill');
+  if (t.kind === 'ground' && src === 'bomb') achAdd('bombKill');
+  if (src === 'rail2') achAdd('railKill');
+  if ((t.isBoss || t.boss) && !t.pod && !missionHurt && mode === 'mission') achUnlock('bossClean');
 }
 function removeMissile(i) { scene.remove(missiles[i].mesh); missiles.splice(i, 1); }
 const immune = () => mode === 'tutorial' || (opts.beginner && mode === 'mission');
 function damagePlayer(amt) {
-  if (!player.alive) return;
+  if (!player.alive) return; missionHurt = true;
   if (mode === 'tutorial') tut.hit = true;
   if (!immune()) player.hp -= amt; shake = Math.max(shake, 1.5); fx.red = 1; fx.flash = Math.max(fx.flash, .15);
   showMsg('DAMAGED', WARN, 1.6);
@@ -2224,9 +2292,9 @@ function updateBullets(dt) {
       if (!dead && !b.fake && mode === 'multi') for (const q of puppets.values()) { if (q.alive && segPointDist(_v1, b.pos, q.pos) < Math.max(13, q.radius * .8)) { damage(q, ST.gunDmg, false); hitSpark(b.pos); dead = true; break; } }
       if (!dead && !b.fake && mode === 'multi') for (const o of remotes.values()) { if (!o.alive) continue; if (segPointDist(_v1, b.pos, o.pos) < 17) { damage(o, ST.gunDmg, false, ST.gunVd); hitSpark(b.pos); dead = true; break; } }
       if (!dead && !b.fake) for (const t of enemies) { if (!t.alive) continue; if (Math.abs(t.pos.x - b.pos.x) > 120 || Math.abs(t.pos.z - b.pos.z) > 120) continue;
-        if (segPointDist(_v1, b.pos, t.pos) < Math.max(17, (t.radius || 0) * .85)) { damage(t, ST.gunDmg, false); hitSpark(b.pos); dead = true; break; } }
-      if (!dead && !b.fake) for (const g of grounds) { if (!g.alive) continue; if (Math.abs(g.pos.x - b.pos.x) > 120 || Math.abs(g.pos.z - b.pos.z) > 120) continue;
-        if (segPointDist(_v1, b.pos, g.pos) < 22) { damage(g, 5, false); hitSpark(b.pos); dead = true; break; } }
+        if (segPointDist(_v1, b.pos, t.pos) < Math.max(17, (t.radius || 0) * .85)) { damage(t, ST.gunDmg, false, null, 'gun'); hitSpark(b.pos); dead = true; break; } }
+      if (!dead && !b.fake) for (const g of grounds) { if (!g.alive || g.friend) continue; const gr = Math.max(22, (g.radius || 0) * .8); if (Math.abs(g.pos.x - b.pos.x) > 120 + gr || Math.abs(g.pos.z - b.pos.z) > 120 + gr) continue;
+        if (segPointDist(_v1, b.pos, g.pos) < gr) { damage(g, 5, false, null, 'gun'); hitSpark(b.pos); dead = true; break; } }
       if (!dead && b.pos.y < floorAt(b.pos.x, b.pos.z)) { const w = b.pos.y < 1 && groundAt(b.pos.x, b.pos.z) < 0; if (Math.random() < .6) smoke.emit(b.pos.x, Math.max(b.pos.y, 0), b.pos.z, 0, w ? 22 : 7, 0, .9, 2, 9, w ? .95 : .55, w ? .97 : .5, w ? 1 : .42, .8, .8, .8, .7, 1); dead = true; }
       if (dead) b.life = 0;
     }
@@ -2339,8 +2407,15 @@ function updateGround(g, dt) {
     if (Math.random() < .5) fire.emit(g.pos.x + rand(-8, 8), g.pos.y - 3, g.pos.z + rand(-8, 8), 0, rand(6, 12), 0, .7, 8, 4, 1, .6, .2, .8, .2, 0, .9, 0); } return; }
   if (!g.alive) return;
   if (g.ship) { shipStep(g, dt); shipGuns(g, dt); }
+  if (g.type === 'LAND') { g.shield = g.tur.some(t => t.alive); shipGuns(g, dt); }
+  if (g.type === 'TUR') { shipGuns(g, dt); if (player.alive) { _v1.subVectors(player.pos, g.pos); g.mesh.rotation.y = Math.atan2(-_v1.x, -_v1.z); } }
+  if (g.type === 'FACT' && g.stacks && Math.random() < dt * 4) { const st = pick(g.stacks); _v1.set(st[0], st[1], st[2]).applyAxisAngle(UP, g.mesh.rotation.y).add(g.mesh.position); smoke.emit(_v1.x, _v1.y, _v1.z, rand(-1, 1), rand(10, 16), rand(-1, 1), 5, 16, 90, .3, .3, .32, .6, .6, .62, .6, .15); }
+  if (g.type === 'CV' && !g.friend && player.alive && !missionResult) { g.launchT = (g.launchT == null ? rand(4, 9) : g.launchT) - dt;
+    if (g.launchT <= 0) { g.launchT = rand(15, 24); if (g.pos.distanceTo(player.pos) < 11000 && enemies.filter(e => e.alive && e.kind === 'air' && !e.pod).length < (g.cap || 9)) {
+      const e = campAir(Math.random() < .3 ? 'I' : 'F', g.pos.x + rand(-40, 40), g.pos.y + 45, g.pos.z + rand(-40, 40)); e.dir.copy(g.vel.lengthSq() ? g.vel : _v1.set(0, 0, -1)).normalize(); e.speed = 150;
+      if (radioCooldown <= 0) { radio('NIGHTJAR', '空母から艦載機が発進した！', 2.6, true); radioCooldown = 6; } } } }
   if (g.type === 'RADAR' && g.mesh.userData.dish) g.mesh.userData.dish.rotation.y += dt * 1.6;
-  if ((g.type === 'SAM' || g.aa) && player.alive) {
+  if ((g.type === 'SAM' || g.aa) && player.alive && !g.friend) {
     g.cd -= dt; const d = g.pos.distanceTo(player.pos);
     if (d < 5200 && g.cd <= 0 && enemyMissileCount() < 3) {
       _v1.subVectors(player.pos, g.pos).normalize(); _v1.y = Math.max(_v1.y, .35) + .5; _v1.normalize();
@@ -3498,6 +3573,7 @@ function onPhase(mt) {
     radio('NIGHTJAR', mt.res === 'win' ? `全ウェーブ突破！チームスコア ${mt.sc}。最高の連携だった。` : '時間切れだ…全機、撤退せよ。', 5, true); showMpResult(mpSnapshot(mt, true)); return; }
   if (mt.ph === 'end') { const n = winnerName(mt.win);
     showMsg(iWon(mt.win) ? 'VICTORY' : mt.win ? `WINNER ${n}` : 'MATCH OVER', iWon(mt.win) ? AMBER : HUDC, 7, true);
+    if (iWon(mt.win)) achAdd('mpWin', 1, true);
     radio('NIGHTJAR', iWon(mt.win) ? '対戦勝利だ、見事だったぞ！' : mt.win ? `対戦終了。勝者は ${n}。` : '対戦終了。', 5, true); showMpResult(mpSnapshot(mt, true)); }
 }
 function matchTick(dt) {
@@ -3675,10 +3751,12 @@ function renderHangar() {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'segb' + (LO[cat] === i ? ' on' : ''); b.setAttribute('aria-pressed', LO[cat] === i);
       if (cat === 'paint') { b.title = pt.n; b.setAttribute('aria-label', pt.n); b.style.setProperty('--sw1', pt.custom ? LO.custom.body : '#' + pt.body.toString(16).padStart(6, '0')); b.style.setProperty('--sw2', pt.custom ? LO.custom.tail : '#' + pt.tail.toString(16).padStart(6, '0')); if (pt.custom) b.textContent = '✎'; }
       else { b.textContent = pt.n; if (pt.w != null && cat !== 'frame') { const w = document.createElement('small'); w.textContent = pt.w + 'kg'; b.append(w); } }
-      b.addEventListener('click', () => { LO[cat] = i; saveLoadout(); rebuildPlayerMesh(); renderHangar(); sfxTone(900, 1100, .05, .04, 'triangle'); });
+      if (partLocked(pt)) { const ad = ACH_DEF.find(a => a.id === pt.ach); b.disabled = true; b.classList.add('locked'); b.title = '🔒 実績「' + ad.n + '」：' + ad.d; if (cat !== 'paint') b.textContent = '🔒 ' + pt.n; b.setAttribute('aria-label', pt.n + '（実績で解放：' + ad.d + '）'); }
+      b.addEventListener('click', () => { if (partLocked(pt)) return; LO[cat] = i; saveLoadout(); rebuildPlayerMesh(); renderHangar(); sfxTone(900, 1100, .05, .04, 'triangle'); });
       row.append(b);
     });
     sec.append(row);
+    if (cat !== 'paint' && partLocked(part(cat))) { LO[cat] = 0; }
     if (cat === 'paint') { // free colour pickers: editing any switches to the CUSTOM scheme
       const cr = document.createElement('div'); cr.className = 'colors';
       [['body', '機体'], ['dark', 'アクセント'], ['tail', '尾翼']].forEach(([k, n]) => {
@@ -3701,6 +3779,13 @@ function renderHangar() {
     const val = document.createElement('em'); val.textContent = n === '積載' ? `${w} / ${cap}` : Math.round(v * 100); r.append(a, t, val); sb.append(r); }
   $('#hgWeight').textContent = over ? 'OVERWEIGHT' : `HP ${Math.round(100 * st.hp)} · SP ${st.sp.n}`;
   $('#hgWarn').textContent = over ? `積載オーバー（${w - cap}kg 超過）。エンジン・兵装・装甲を軽くしてね。` : '';
+}
+function renderAch() {
+  const done = ACH_DEF.filter(a => ACH.u[a.id]).length; $('#achSub').textContent = `${done} / ${ACH_DEF.length} 達成`;
+  $('#achList').innerHTML = ACH_DEF.map(a => { const ok = !!ACH.u[a.id]; let pr = ''; if (!ok) { const v = a.pr ? a.pr() : a.cnt ? [Math.min(a.need, ACH.c[a.cnt] || 0), a.need] : null;
+      pr = v ? `<i class="ap"><b style="width:${Math.round(v[0] / v[1] * 100)}%"></b></i><em>${a.fmt ? a.fmt(ACH.c[a.cnt] || 0) : v[0] + ' / ' + v[1]}</em>` : ''; }
+    return `<li class="${ok ? 'ok' : ''}"><span class="an">${ok ? '🏆' : '🔒'} ${a.n}</span><span class="ad">${a.d}</span><span class="ar">報酬：${a.rw}</span>${pr}</li>`; }).join('');
+  $('#ach').hidden = false; $('#achClose').focus();
 }
 function updateLoadoutSummary() { const el = $('#loSummary'); if (el) el.textContent = `${part('frame').n} / ${part('engine').n} / ${part('special').n} / ${part('gun').n} / ${part('paint').n}`; }
 
@@ -4062,7 +4147,7 @@ function tracerSetup() { if (TRC.mesh) return; const g = new THREE.BufferGeometr
   g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(TRC.max * 6), 3).setUsage(THREE.DynamicDrawUsage));
   TRC.mesh = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); TRC.mesh.frustumCulled = false; scene.add(TRC.mesh); }
 function tracer(from, dir, speed, hostile, col) { tracerSetup(); if (TRC.list.length >= TRC.max) TRC.list.shift(); TRC.list.push({ p: from.clone(), prev: from.clone(), v: dir.clone().multiplyScalar(speed), life: 2.2, hostile, col }); }
-function chipPlayer(amt, why) { if (!player.alive || immune()) return; player.hp -= amt; fx.red = Math.max(fx.red, .45); shake = Math.max(shake, .35);
+function chipPlayer(amt, why) { if (!player.alive || immune()) return; if (amt > 0) missionHurt = true; player.hp -= amt; fx.red = Math.max(fx.red, .45); shake = Math.max(shake, .35);
   if (Math.random() < .25) showMsg('AAA HIT', WARN, .8); if (player.hp <= 0) { player.hp = 0; killPlayer(why); } }
 function tracerStep(dt) {
   if (!TRC.mesh) return; const pa = TRC.mesh.geometry.attributes.position.array, ca = TRC.mesh.geometry.attributes.color.array; let n = 0;
@@ -4077,25 +4162,27 @@ function tracerStep(dt) {
 const TRC_RED = [5, 1.6, .5], TRC_GOLD = [5, 3.6, 1.2];
 // ships: close-in guns hose tracers at the player; big ships add flak bursts around them
 function shipGuns(g, dt) {
-  if (!player.alive || g.type === 'LST') return; const d = g.pos.distanceTo(player.pos); g.gunT = (g.gunT || 0) - dt; g.flakT = (g.flakT || rand(1, 3)) - dt;
-  if (d < 2600 && g.gunT <= 0) { g.gunT = g.type === 'BB' || g.type === 'CG' ? .07 : .11;
+  if (!player.alive || g.friend || (g.type === 'LST' && !g.guns)) return; const d = g.pos.distanceTo(player.pos); g.gunT = (g.gunT || 0) - dt; g.flakT = (g.flakT || rand(1, 3)) - dt;
+  if (d < 2600 && g.gunT <= 0) { g.gunT = g.type === 'BB' || g.type === 'CG' || g.type === 'CV' || g.type === 'LAND' ? .07 : g.type === 'TUR' ? .09 : .11;
     _v1.set(rand(-g.radius * .4, g.radius * .4), 12, rand(-g.radius * .6, g.radius * .6)).add(g.pos);
     const tt = d / 900; _v2.copy(player.pos).addScaledVector(player.vel, tt).sub(_v1).normalize(); _v2.x += rand(-.035, .035); _v2.y += rand(-.03, .04); _v2.z += rand(-.035, .035); _v2.normalize();
     tracer(_v1, _v2, 900, true, TRC_RED); }
-  if (d < 5200 && g.flakT <= 0 && (g.type === 'BB' || g.type === 'CG' || g.type === 'DD')) { g.flakT = g.type === 'BB' ? rand(.5, 1) : rand(1.2, 2.2);
+  if (d < 5200 && g.flakT <= 0 && (g.type === 'BB' || g.type === 'CG' || g.type === 'DD' || g.type === 'CV' || g.type === 'LAND')) { g.flakT = g.type === 'BB' || g.type === 'CV' || g.type === 'LAND' ? rand(.5, 1) : rand(1.2, 2.2);
     _v3.copy(player.pos).addScaledVector(player.vel, rand(.3, 1)).add(_v4.set(rand(-90, 90), rand(-60, 80), rand(-90, 90))); flakBurst(_v3);
     if (_v3.distanceTo(player.pos) < 40) chipPlayer(opts.beginner ? 0 : 3.5, '対空砲火'); }
 }
 // ---- spawning ----
 function campGround(type, x, z, h, o = {}) {
-  const mesh = type === 'SAM' || type === 'AA' ? makeSAM(groundMat) : type === 'RADAR' ? makeRadar(groundMat) : type === 'TANK' ? makeTanks(groundMat) : type === 'HANGAR' ? makeHangarMesh() : makeShipMesh(type);
-  const ship = type === 'DD' || type === 'CG' || type === 'BB' || type === 'LST';
-  if (!ship) mesh.scale.setScalar(type === 'HANGAR' ? 1 : 1.4);
+  const mesh = type === 'SAM' || type === 'AA' ? makeSAM(groundMat) : type === 'RADAR' ? makeRadar(groundMat) : type === 'TANK' ? makeTanks(groundMat) : type === 'HANGAR' ? makeHangarMesh() : type === 'CV' ? makeCarrier() : type === 'LAND' ? makeLandshipMesh() : type === 'TUR' ? makeTurretMesh() : type === 'FACT' ? makeFactoryMesh() : makeShipMesh(type);
+  const ship = type === 'DD' || type === 'CG' || type === 'BB' || type === 'LST' || type === 'CV', big = type === 'CV' || type === 'LAND' || type === 'TUR' || type === 'FACT';
+  if (!ship && !big) mesh.scale.setScalar(type === 'HANGAR' ? 1 : 1.4); if (type === 'CV') mesh.scale.setScalar(1.25);
   mesh.position.set(x, ship ? 0 : h - 1, z); mesh.rotation.y = o.rot != null ? o.rot : rand(0, 6.28); scene.add(mesh);
-  const hp = { SAM: 100, AA: 90, RADAR: 100, TANK: 100, HANGAR: 160, DD: 220, CG: 340, LST: 180, BB: 700 }[type];
-  const g = { kind: 'ground', type, label: { AA: 'AAA', DD: 'DDG', CG: 'CG', LST: 'LST', BB: 'BB' }[type] || type, mesh, pos: new V3(x, ship ? 8 : h + 6, z), vel: new V3(), alive: true, hp, maxHp: hp, radius: type === 'BB' ? 70 : type === 'CG' ? 46 : ship ? 38 : 26,
-    score: { SAM: 800, AA: 700, RADAR: 600, TANK: 400, HANGAR: 900, DD: 1500, CG: 2500, LST: 1200, BB: 6000 }[type], cd: rand(4, 9), smokeT: 0, wreck: false, ship, aa: type === 'AA' };
+  const hp = { SAM: 100, AA: 90, RADAR: 100, TANK: 100, HANGAR: 160, DD: 220, CG: 340, LST: 180, BB: 700, CV: 1500, LAND: 2800, TUR: 320, FACT: 260 }[type];
+  const g = { kind: 'ground', type, label: { AA: 'AAA', DD: 'DDG', CG: 'CG', LST: 'LST', BB: 'BB', CV: 'CARRIER', LAND: 'LANDSHIP', TUR: 'TURRET', FACT: 'FACTORY' }[type] || type, mesh, pos: new V3(x, type === 'CV' ? 22 : type === 'LAND' ? h + 40 : type === 'TUR' ? h + 62 : ship ? 8 : h + 6, z), vel: new V3(), alive: true, hp, maxHp: hp,
+    radius: { BB: 70, CG: 46, CV: 150, LAND: 150, TUR: 30, FACT: 38 }[type] || (ship ? 38 : 26), msl: { LAND: .1, TUR: .3, CV: .5 }[type], armor: type === 'LAND' || type === 'CV' ? true : undefined,
+    score: { SAM: 800, AA: 700, RADAR: 600, TANK: 400, HANGAR: 900, DD: 1500, CG: 2500, LST: 1200, BB: 6000, CV: 7000, LAND: 12000, TUR: 1500, FACT: 1200 }[type], cd: rand(4, 9), smokeT: 0, wreck: false, ship, aa: type === 'AA' };
   if (type === 'AA') g.type = 'SAM';
+  if (type === 'FACT') g.stacks = mesh.userData.stacks;
   Object.assign(g, o); grounds.push(g); return g;
 }
 function campAir(code, x, y, z, o = {}) {
@@ -4103,6 +4190,49 @@ function campAir(code, x, y, z, o = {}) {
   if (o.mesh) { scene.remove(e.mesh); e.mesh = o.mesh; scene.add(e.mesh); delete o.mesh; }
   Object.assign(e, o); if (o.hp) e.maxHp = o.hp; if (o.dir) e.dir.copy(o.dir).normalize();
   return e;
+}
+
+// ---- EXTRA chapter meshes ----
+function makeLandshipMesh() { // huge tracked fortress: the 4 gun turrets are separate targets (see campLandship)
+  const g = new THREE.Group(), hullM = new THREE.MeshStandardMaterial({ color: 0x4d5148, roughness: .62, metalness: .45 }), darkM = new THREE.MeshStandardMaterial({ color: 0x2b2e2c, roughness: .75, metalness: .3 }), plateM = new THREE.MeshStandardMaterial({ color: 0x5c6155, roughness: .55, metalness: .5 });
+  const box = (w, h, d, x, y, z, m = hullM) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
+  for (const sx of [-1, 1]) { box(30, 20, 270, sx * 56, 10, 0, darkM); for (let i = -6; i <= 6; i++) box(34, 22, 6, sx * 56, 10, i * 20, plateM); for (const z of [-120, -60, 0, 60, 120]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 32, 14), plateM); w.rotation.z = Math.PI / 2; w.position.set(sx * 56, 12, z); g.add(w); } }
+  box(104, 26, 230, 0, 32, 0); box(86, 16, 200, 0, 53, 0, plateM);
+  { const bow = box(104, 30, 30, 0, 34, -118, hullM); bow.rotation.x = Math.PI / 4; }
+  box(46, 36, 54, 0, 79, 86, hullM); box(38, 8, 40, 0, 102, 86, plateM); box(40, 5, 2, 0, 90, 59.5, new THREE.MeshStandardMaterial({ color: 0x1d3140, metalness: .7, roughness: .2 }));
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.8, 1.4, 36, 6), darkM); mast.position.set(0, 124, 86); g.add(mast); box(14, 1.2, 6, 0, 138, 86, darkM);
+  for (let i = 0; i < 6; i++) box(10, 8, 12, -30 + (i % 3) * 30, 64, -20 + Math.floor(i / 3) * 70, darkM); // deck-mounted launchers
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+function makeTurretMesh() {
+  const g = new THREE.Group(), hullM = new THREE.MeshStandardMaterial({ color: 0x575c50, roughness: .55, metalness: .5 }), darkM = new THREE.MeshStandardMaterial({ color: 0x2b2e2c, roughness: .7, metalness: .4 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(20, 23, 9, 16), darkM); base.position.y = 4; g.add(base);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(34, 14, 40), hullM); body.position.set(0, 14, 4); g.add(body);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(28, 5, 30), darkM); roof.position.set(0, 23, 6); g.add(roof);
+  for (const sx of [-1, 1]) { const brl = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2, 66, 8), darkM); brl.rotation.x = Math.PI / 2; brl.position.set(sx * 8, 15, -36); g.add(brl); const mz = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 6, 8), hullM); mz.rotation.x = Math.PI / 2; mz.position.set(sx * 8, 15, -66); g.add(mz); }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+function makeFactoryMesh() {
+  const g = new THREE.Group(), wallM = new THREE.MeshStandardMaterial({ color: 0x8b8a82, roughness: .8, metalness: .15 }), roofM = new THREE.MeshStandardMaterial({ color: 0x5a5e62, roughness: .7, metalness: .35 }), darkM = new THREE.MeshStandardMaterial({ color: 0x3a3d40, roughness: .8 });
+  const box = (w, h, d, x, y, z, m = wallM) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
+  box(96, 26, 62, 0, 13, 0); for (let i = 0; i < 4; i++) { const sw = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 62, 3), roofM); sw.rotation.x = -Math.PI / 2; sw.scale.set(12.5, 1, 7.5); sw.position.set(-36 + i * 24, 29, 0); g.add(sw); }
+  box(30, 18, 26, 66, 9, -10, wallM); box(18, 3, 40, -64, 1.6, 40, darkM);
+  const stacks = []; [[-30, 34], [-14, 34], [8, 34]].forEach(([x, z], i) => { const h = 50 + i * 9, st = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 4.4, h, 10), i % 2 ? roofM : new THREE.MeshStandardMaterial({ color: 0xb8b2a6, roughness: .8 })); st.position.set(x, h / 2, z); g.add(st);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(3.3 + .1, 3.5, 4, 10), new THREE.MeshStandardMaterial({ color: 0xa83a2a, roughness: .8 })); band.position.set(x, h - 4, z); g.add(band); stacks.push([x, h + 2, z]); });
+  for (const [x, z] of [[58, 26], [76, 26]]) { const tk = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 16, 14), wallM); tk.position.set(x, 8, z); g.add(tk); }
+  g.userData.stacks = stacks; g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+// a landship with its 4 shield turrets; destroy the turrets and the armour opens up
+function campLandship(x, z, h, rot = 0) {
+  flattenPad(x, z, rot, h, -170, 170, -190, 190, 160);
+  const L = campGround('LAND', x, z, h, { rot, aa: true, cd: rand(6, 10), label: 'LANDSHIP' }); L.mesh.position.y = h; L.tur = [];
+  const ca = Math.cos(rot), sa = Math.sin(rot);
+  for (const [lx, lz] of [[-30, -72], [30, -72], [0, 6], [0, 78]]) { const wx = x + lx * ca + lz * sa, wz = z - lx * sa + lz * ca; // (rotation.y = rot maps local x,z like this)
+    const t = campGround('TUR', wx, wz, h, { rot }); t.mesh.position.y = h + 56; t.mesh.rotation.y = rot; t.pos.y = h + 68; t.parent = L; L.tur.push(t); }
+  L.shield = true; return L;
 }
 const jackalMesh = () => makeJet({ body: 0x23252b, dark: 0x111214, tail: 0x3f8f4a, shape: 'fsw', armor: 1, enemy: true });
 function squad(code, n, cx, cy, cz, spread = 1500, o = {}) { // flights spawn as a finger-four / V toward the player, then break to fight
@@ -4194,6 +4324,8 @@ function allyStep(a, dt) {
 }
 // ---- mission table ----
 const fmtObj = (n, of) => `${n}/${of}`;
+const lockChoices = m => m.lock.filter(id => !partLocked(PARTS.special.find(x => x.id === id)));
+const mtag = m => m.tag || String(m.id).padStart(2, '0');
 const CMISSIONS = [
   { id: 1, title: '夜明けの奇襲', en: 'Dawn Raid', map: 'capital', time: 480,
     story: '早朝、首都アウレアに空襲警報。ヴァルカ軍の巡航ミサイル群が北の海から接近中だ。生き残った機体は君とグリフォン隊長だけ。首都の空軍基地を守り抜け。',
@@ -4416,10 +4548,103 @@ const CMISSIONS = [
 // play order (the fleet battle moved later: it was too hard as mission 3). `key` keeps each mission's original identity for its briefing lines
 { const order = [1, 2, 4, 5, 6, 3, 7, 8, 9, 10], byKey = Object.fromEntries(CMISSIONS.map(m => [m.id, m]));
   const re = order.map((k, i) => Object.assign(byKey[k], { key: k, id: i + 1 })); CMISSIONS.length = 0; CMISSIONS.push(...re); }
+
+// ================= EXTRA chapter: the iron coast =================
+const XMISSIONS = [
+  { id: 11, tag: 'E1', extra: true, title: '工場破壊作戦', en: 'Factory Strike', map: 'coast', time: 600, supply: false,
+    story: 'ヴァルカの兵器工場群がノルド岬の奥で稼働している。無人機とミサイルの部品はここで作られている。対空陣地を抜けて、工場を一つ残らず吹き飛ばせ。爆弾（UGB・BNK）の見せ場だ。',
+    facts: [['目的', '敵の兵器工場すべての破壊'], ['敗北', '撃墜される・時間切れ'], ['ヒント', 'UGBは真下に落とす爆弾。爆風で工場をまとめて壊せる。低く入って、SAMに気をつけろ']],
+    start() {
+      player.pos.set(0, 1800, 14000);
+      const c = campSpot({ x0: -3500, x1: 3500, z0: -9500, z1: -5500, hMin: 25, hMax: 300 }), away = []; CAMP.f.total = 0;
+      for (let i = 0; i < 10; i++) { const sp = campSpot({ x0: c[0] - 2000, x1: c[0] + 2000, z0: c[1] - 1800, z1: c[1] + 1800, hMin: 15, hMax: 500, away, gap: 420 }); away.push(sp); campGround('FACT', sp[0], sp[1], sp[2]); CAMP.f.total++; }
+      for (let i = 0; i < 5; i++) { const sp = campSpot({ x0: c[0] - 2400, x1: c[0] + 2400, z0: c[1] - 2200, z1: c[1] + 2200, hMin: 15, hMax: 500, away, gap: 380 }); away.push(sp); campGround(i < 3 ? 'SAM' : 'AA', sp[0], sp[1], sp[2]); }
+      for (let i = 0; i < 4; i++) { const sp = campSpot({ x0: c[0] - 2000, x1: c[0] + 2000, z0: c[1] - 1800, z1: c[1] + 1800, hMin: 15, hMax: 500, away, gap: 300 }); away.push(sp); campGround('TANK', sp[0], sp[1], sp[2]); }
+      after(45, () => { squad('F', 4, 0, 2400, -14000, 0); radio('NIGHTJAR', '工場上空に迎撃機4機！', 3.5, true); });
+      after(130, () => { squad('I', 4, 0, 3000, -14000, 0); radio('NIGHTJAR', '増援が来る！ 仕上げを急げ！', 3.5, true); });
+      radio('NIGHTJAR', 'こちらナイトジャー。目標は岬の奥の兵器工場群。煙突が目印だ。'); radio('WREN', '爆弾の出番だね。真上から落とせば一発だよ！', 4);
+    },
+    tick() {
+      const n = grounds.filter(g => g.alive && g.type === 'FACT').length; CAMP.obj = `工場 残り ${n}/${CAMP.f.total}`; CAMP.status = null;
+      if (missionTime > 3 && !n) return campEnd(true);
+    },
+    win: [['NIGHTJAR', '工場群の壊滅を確認。敵の無人機の生産は止まった。'], ['WREN', '空が煙で真っ黒だよ…。帰ろう、ケストレル。']] },
+  { id: 12, tag: 'E2', extra: true, title: '裏切りの船団', en: 'Convoy Betrayal', map: 'ocean', time: 720,
+    story: '友軍の輸送船団をグレイ海で護衛する任務。…だが、船団の通信はずっとおかしかった。突然、全艦の砲がこちらを向く。船団ごと敵に寝返ったのだ。',
+    facts: [['目的', 'まず船団を護衛。その後、裏切った船団を全滅させる'], ['敗北', '撃墜される・時間切れ'], ['注意', '裏切る前の船団は撃てない。裏切った後は、機関砲とミサイルを撃ってくる']],
+    start() {
+      player.pos.set(0, 2000, 12000); CAMP.f.convoy = [];
+      const put = (type, dx, dz) => { const g = campGround(type, dx, -7000 + dz, 0, { rot: 0 }); g.vel.set(0, 0, 24); g.friend = true; g.lineZ = 1e9; g.label = type === 'LST' ? 'CONVOY' : g.label; CAMP.f.convoy.push(g); return g; };
+      for (let i = 0; i < 6; i++) put('LST', -420 + (i % 3) * 420, (i >> 1 >> 0) * 0 + Math.floor(i / 3) * 360);
+      put('CG', 0, 800); put('DD', -900, 300); put('DD', 900, 300); put('DD', 0, -700);
+      after(14, () => { squad('F', 3, 0, 2500, -14000, 0); radio('NIGHTJAR', '敵機3機が船団を狙っている！ 迎撃しろ！', 3.5, true); });
+      radio('NIGHTJAR', '友軍の輸送船団だ。敵が来る前に空域を固めろ。'); radio('GRIFFON', '…船団からの識別信号が、妙に遅いな。', 4);
+    },
+    tick() {
+      const cv = CAMP.f.convoy, left = cv.filter(g => g.alive).length;
+      if (!CAMP.f.betray) { CAMP.obj = `船団を護衛せよ（敵機を撃退）`; CAMP.status = null;
+        if (missionTime >= 55) { CAMP.f.betray = true; for (const g of cv) { g.friend = false; g.guns = true; g.aa = true; g.cd = rand(4, 10); g.vel.set(0, 0, 14); g.label = g.type === 'LST' ? 'TRAITOR' : g.label; if (g.type === 'LST') g.hp = g.maxHp = 260; }
+          showMsg('CONVOY HOSTILE', WARN, 3.5, true); sfxTone(300, 120, .8, .2, 'sawtooth');
+          radio('NIGHTJAR', '船団が…砲をこちらに向けた！？ 全艦が敵に寝返った！', 4.5, true); radio('GRIFFON', '最初から罠だったか…！ 全部叩き落とせ、ケストレル！', 4.5, true); } }
+      else { CAMP.obj = `裏切った船団を撃沈せよ  残り ${left}/${cv.length}`; CAMP.status = null; if (!left) return campEnd(true); }
+    },
+    win: [['NIGHTJAR', '船団の全滅を確認。…誰が船団の情報を流したのか、調べる必要があるな。'], ['GRIFFON', '内通者の影は、まだ消えてないってことか。']] },
+  { id: 13, tag: 'E3', extra: true, title: '重装甲の壁', en: 'Wall of Steel', map: 'airport', time: 720, lock: ['eml', 'ugb', 'tls', 'bnk', 'emlx', 'tlsx'],
+    story: '陸上戦艦「ベヒモス」が島を這って進軍している。装甲はミサイルをほとんど通さない。まず4基の主砲塔を潰せば、装甲が開く。このミッションは使える特殊兵装が固定。ブリーフィング画面で選べ。',
+    facts: [['目的', '陸上戦艦の撃破（主砲塔4基を先に破壊）'], ['固定武器', 'EML・UGB・TLS（解放済みならBNK・EML-II・TLS-Xも）から1つ'], ['注意', 'ミサイルは威力が約1割に落ちる。機関砲も効果が薄い']],
+    start() {
+      player.pos.set(0, 1900, 13000);
+      const c = campSpot({ x0: -2500, x1: 2500, z0: -9500, z1: -6000, hMin: 28, hMax: 220 }); CAMP.f.land = campLandship(c[0], c[1], c[2], rand(-.4, .4));
+      const away = [c]; for (let i = 0; i < 4; i++) { const sp = campSpot({ x0: c[0] - 1800, x1: c[0] + 1800, z0: c[1] - 1600, z1: c[1] + 1600, hMin: 10, hMax: 400, away, gap: 350 }); away.push(sp); campGround(i < 2 ? 'SAM' : 'AA', sp[0], sp[1], sp[2]); }
+      after(70, () => { squad('F', 4, 0, 2500, -14000, 0); radio('NIGHTJAR', '戦艦の護衛機が上がった！ 4機だ！', 3.5, true); });
+      radio('NIGHTJAR', '目標は陸上戦艦「ベヒモス」。主砲塔が装甲を守っている。まず砲塔を潰せ。'); radio('WREN', 'ミサイルが効かない…？ 今回は決まった兵装で戦うしかないね。', 4.5);
+    },
+    tick() {
+      const L = CAMP.f.land, tur = L.tur.filter(t => t.alive).length; CAMP.obj = L.alive ? (tur ? `主砲塔を破壊せよ  残り ${tur}/4` : '装甲が開いた！ 本体を撃て') : '撃破！'; CAMP.status = L.alive ? [`ARMOR ${Math.max(0, Math.round(L.hp / L.maxHp * 100))}%`, !tur] : null;
+      if (!tur && !CAMP.f.open) { CAMP.f.open = true; showMsg('ARMOR OPEN', AMBER, 2.5, true); radio('NIGHTJAR', '主砲塔の全滅を確認。装甲が開いた、本体を撃て！', 4, true); }
+      if (!L.alive) return campEnd(true);
+    },
+    win: [['NIGHTJAR', 'ベヒモス撃破！ あの壁をよく崩した。'], ['WREN', 'レールガンも爆弾も、最高に気持ちよかった！']] },
+  { id: 14, tag: 'E4', extra: true, title: '空母三連星', en: 'Three Carriers', map: 'final', time: 780, supply: true,
+    story: '巨大空母3隻が並んで進んでくる。艦載機が次々に発進し、対空砲火も厚い。ミサイルは装甲で半分に弱まる。爆弾とレールガンで一隻ずつ沈めろ。基地や空母の上を低空で通れば補給できる。',
+    facts: [['目的', '敵空母3隻の撃沈'], ['敗北', '撃墜される・時間切れ'], ['補給', '味方の空母・基地の上を低空（200m以下）で通ると補給できる'], ['注意', '空母から艦載機が発進し続ける。長引くほど不利']],
+    start() {
+      player.pos.set(0, 2200, 14000); const away = [];
+      for (const dx of [-3000, 0, 3000]) { const sp = campSpot({ sea: true, x0: dx - 700, x1: dx + 700, z0: -12500, z1: -8500, away, gap: 1500 }); away.push(sp);
+        const cv = campGround('CV', sp[0], sp[1], 0, { rot: 0, cap: 4 }); cv.vel.set(0, 0, 9); cv.label = 'CARRIER'; const dd = campGround('DD', sp[0] + 420, sp[1] + 200, 0, { rot: 0 }); dd.vel.set(0, 0, 9); const dd2 = campGround('CG', sp[0] - 420, sp[1] + 200, 0, { rot: 0 }); dd2.vel.set(0, 0, 9); }
+      after(45, () => { squad('F', 4, 0, 2400, -14000, 0); radio('NIGHTJAR', '敵の迎撃部隊4機！ 空母の護衛だ！', 3.5, true); });
+      radio('NIGHTJAR', '空母が3隻、横並びで進んでくる。艦載機が出る前に叩けるだけ叩け。'); radio('GRIFFON', 'でかいな…。ミサイルで削るのは無理だ、爆弾かレールガンを使え。', 4.5);
+    },
+    tick() {
+      const cv = grounds.filter(g => g.alive && g.type === 'CV').length; CAMP.obj = `敵空母 残り ${cv}/3`; CAMP.status = null;
+      if (missionTime > 5 && !cv) { for (const g of grounds) if (g.ship) g.vel.set(0, 0, -20); return campEnd(true); }
+    },
+    win: [['NIGHTJAR', '空母3隻の撃沈を確認。壮観だったな。'], ['GRIFFON', '三隻まとめてとはな。さすが、落ちない槍だ。']] },
+  { id: 15, tag: 'E5', extra: true, title: '最終防衛線', en: 'Last Bulwark', map: 'archi', time: 900, supply: true,
+    story: '陸上戦艦と空母2隻が同時に侵攻してきた。これが最後の防衛線だ。陸の主砲、海の艦載機、両方が君を狙う。すべてを撃破して、群島を守り抜け。',
+    facts: [['目的', '陸上戦艦と空母2隻をすべて撃破'], ['敗北', '撃墜される・時間切れ'], ['補給', '味方の基地や空母の上を低空で通ると補給できる']],
+    start() {
+      player.pos.set(0, 2200, 14000);
+      const c = campSpot({ x0: -5500, x1: 5500, z0: -9500, z1: -4000, hMin: 6, hMax: 220 }); CAMP.f.land = campLandship(c[0], c[1], c[2], rand(-.4, .4));
+      const away = [];
+      for (const dx of [-4500, 4500]) { const sp = campSpot({ sea: true, x0: dx - 1500, x1: dx + 1500, z0: -12500, z1: -7500, away, gap: 2500 }); away.push(sp); const cv = campGround('CV', sp[0], sp[1], 0, { rot: 0, cap: 3 }); cv.vel.set(0, 0, 8); }
+      after(60, () => { squad('F', 4, 0, 2400, -14000, 0); radio('NIGHTJAR', '迎撃機が来る！ 地上と海、どちらも気を抜くな！', 3.5, true); });
+      after(180, () => { squad('I', 4, 0, 3000, -14000, 0); radio('NIGHTJAR', '増援だ！ 長引くと押し切られるぞ！', 3.5, true); });
+      radio('NIGHTJAR', '陸上戦艦に空母2隻。これが最後の防衛線だ。…全機、持ちこたえろ。'); radio('WREN', 'ケストレル、ここを守れば終わりだよ。いこう！', 4);
+    },
+    tick() {
+      const L = CAMP.f.land, cv = grounds.filter(g => g.alive && g.type === 'CV').length, tur = L.tur.filter(t => t.alive).length;
+      CAMP.obj = `陸上戦艦 ${L.alive ? (tur ? '砲塔 残り' + tur : '本体') : '撃破'}  ·  空母 残り ${cv}/2`; CAMP.status = null;
+      if (missionTime > 5 && !L.alive && !cv) { for (const g of grounds) if (g.ship) g.vel.set(0, 0, -20); return campEnd(true); }
+    },
+    win: [['NIGHTJAR', '陸上戦艦と空母の全滅を確認。群島は守られた。'], ['WREN', 'やった…やったよ、ケストレル！'], ['GRIFFON', '落ちない槍は、折れなかったな。']] }
+];
+CMISSIONS.push(...XMISSIONS);
 function campEnd(win, reason) {
   if (missionResult) return;
   missionResult = win ? 'win' : 'fail'; endTimer = win ? 8 : 4;
-  if (win) { showMsg('MISSION ACCOMPLISHED', HUDC, 7, true); (CAMP.m.win || []).forEach(([w, t]) => radio(w, t, 5)); const sv = campSave.get(); sv.cleared = Math.max(sv.cleared || 0, CAMP.m.id); campSave.set(sv); }
+  if (win) { showMsg('MISSION ACCOMPLISHED', HUDC, 7, true); (CAMP.m.win || []).forEach(([w, t]) => radio(w, t, 5)); const sv = campSave.get(); if (CAMP.m.extra) { sv.x = sv.x || {}; sv.x[CAMP.m.id] = 1; } else sv.cleared = Math.max(sv.cleared || 0, CAMP.m.id); campSave.set(sv);
+    if (achOn()) { if (!missionHurt) achUnlock('nohit'); if (!CAMP.m.extra && sv.cleared >= 10) achUnlock('camp10'); if (CAMP.m.extra && Object.keys(sv.x).length >= 5) achUnlock('extraAll'); } }
   else { player.failReason = reason; showMsg('MISSION FAILED', WARN, 4, true); }
 }
 function campTick(dt) {
@@ -4428,6 +4653,7 @@ function campTick(dt) {
   if (!missionResult) CAMP.m.tick(dt);
 }
 function campClear() {
+  if (CAMP.loSave != null) { LO.special = CAMP.loSave; CAMP.loSave = null; ST = stats(); rebuildPlayerMesh(); }
   SUPPLY.on = false; SUPPLY.site = null; SUPPLY.prog = 0; SUPPLY.cd = 0; SUPPLY.lowT = 0;
   TRC.list.length = 0; if (TRC.mesh) TRC.mesh.geometry.setDrawRange(0, 0);
   for (const e of CAMP.escorts) if (e.mesh) scene.remove(e.mesh); for (const a of CAMP.allies) scene.remove(a.mesh); for (const m of CAMP.extras) scene.remove(m);
@@ -4437,8 +4663,9 @@ function campClear() {
 function startCampaign(i) {
   const M = CMISSIONS[i]; if (!M) return;
   mode = 'mission'; clearMission(); campClear(); CAMP.m = M; CAMP.idx = i; player.failReason = '';
+  if (M.lock) { const ids = lockChoices(M), pick = ids.includes(CAMP.lockPick) ? CAMP.lockPick : ids[0]; CAMP.loSave = LO.special; LO.special = PARTS.special.findIndex(x => x.id === pick); rebuildPlayerMesh(); }
   setMap(M.map);
-  state = 'play'; missionTime = 0; timeLeft = M.time; score = 0; kills = 0; phase = 1; endTimer = 0; missionResult = null; shake = 0; outTimer = 0;
+  state = 'play'; missionTime = 0; timeLeft = M.time; score = 0; kills = 0; phase = 1; endTimer = 0; missionResult = null; shake = 0; outTimer = 0; missionHurt = false; ACH.session.length = 0;
   timeScale = 1; slowmoT = 0; lastKillT = -99; chain = 0;
   Object.assign(player, { speed: 260, prevSpeed: 260, throttle: .55, cp: 0, cr: 0, cy: 0, hp: refreshLoadout(), alive: true, msl: 64, gun: 1600, flares: 24, pylon: [0, 0, 0, 0], nextPylon: 0, flareCd: 0, maxG: 1 });
   player.quat.identity(); player.velDir.set(0, 0, -1); player.mesh.visible = true; player.mesh.userData.pylons.forEach(p => p.visible = true);
@@ -4447,7 +4674,7 @@ function startCampaign(i) {
   placeSupplySite(player.pos); SUPPLY.on = !!M.supply; // the site is always there for the takeoff; only some missions let you rearm on it
   player.velDir.set(0, 0, -1).applyQuaternion(player.quat);
   $('#title').hidden = true; $('#camp').hidden = true; $('#result').hidden = true; $('#pause').hidden = true; $('#touch').hidden = !isTouch; $('#tut').hidden = true;
-  initAudio(); setGuide(opts.guide); showMsg(`MISSION ${String(M.id).padStart(2, '0')}  ${M.en.toUpperCase()}`, HUDC, 4, true);
+  initAudio(); setGuide(opts.guide); showMsg(`${M.extra ? 'EXTRA' : 'MISSION'} ${mtag(M)}  ${M.en.toUpperCase()}`, HUDC, 4, true);
 }
 /* ---- pre-mission briefing: the commander talks while your jet takes off ---- */
 const BRF = { t: 0, lines: [], li: -1, lt: 0, run: null, save: null, ending: false, dur: 17 };
@@ -4463,6 +4690,13 @@ const BRIEF_LINES = {
   9: [['NIGHTJAR', 'イスベル・フィヨルドに空中空母「HYDRA」が出現した。'], ['NIGHTJAR', '護衛にはジャッカルがいる。…決着をつけてこい。'], ['WREN', 'あの人とは、ケストレルが一人で戦うんでしょ？ 分かってる。']],
   10: [['NIGHTJAR', 'SERAPHが起動した。無人機の群れが両国の空を覆い始めている。'], ['NIGHTJAR', 'もう国と国の戦争じゃない。空を、人の手に取り戻す戦いだ。'], ['NIGHTJAR', '全機、これが最後の出撃だ。……生きて帰れ。']]
 };
+Object.assign(BRIEF_LINES, {
+  11: [['NIGHTJAR', '無人機の部品を作っている工場群を特定した。ノルド岬の奥だ。'], ['WREN', '対空陣地もびっしり。低く入って、爆弾で一気にいこう。'], ['NIGHTJAR', 'UGBは真下に落とす爆弾。工場は爆風でまとめて壊せるはずだ。']],
+  12: [['NIGHTJAR', '友軍の輸送船団を、グレイ海で護衛してもらう。'], ['GRIFFON', '…船団の通信ログに、妙な遅延がある。気を抜くなよ。'], ['NIGHTJAR', '敵機が船団を狙っている。まずは空を守れ。']],
+  13: [['NIGHTJAR', '陸上戦艦「ベヒモス」が島を進軍中だ。ミサイルはほとんど効かない。'], ['WREN', '今回は使える兵装が決まってるよ。出撃前に選んでね。'], ['NIGHTJAR', '4基の主砲塔が装甲を守っている。まず砲塔を潰せ。']],
+  14: [['NIGHTJAR', '敵の大型空母が3隻、横並びで接近している。'], ['GRIFFON', '艦載機が出る前に叩く。爆弾とレールガンを使え。'], ['NIGHTJAR', '補給は味方の基地か空母の上を低空で通れ。弾を惜しむな。']],
+  15: [['NIGHTJAR', '陸上戦艦と空母2隻が同時に来た。これが最後の防衛線だ。'], ['WREN', '陸と海、両方から撃たれるよ。気をつけて。'], ['GRIFFON', 'ケストレル。お前がいれば、この壁は越えられる。行ってこい。']]
+});
 function briefDom() {
   let el = $('#brief'); if (el) return el;
   const st = document.createElement('style'); st.textContent = `#brief{position:fixed;inset:0;z-index:40;pointer-events:auto;cursor:pointer}
@@ -4684,7 +4918,7 @@ function startBrief(i) {
   BRF.dur = Math.max(18, BRF.lines.reduce((a, l) => a + 1.4 + l[1].length * .085, 2.5));
   BRF.rollStart = Math.max(4.5, BRF.dur - 13.5);
   const el = briefDom(); el.hidden = false; $('#brF').style.opacity = 1; requestAnimationFrame(() => { $('#brF').style.opacity = 0; });
-  $('#brK').textContent = `MISSION ${String(M.id).padStart(2, '0')} · ${MAPS[M.map].name}`; $('#brT').textContent = M.en; $('#brM').textContent = M.title;
+  $('#brK').textContent = `${M.extra ? 'EXTRA' : 'MISSION'} ${mtag(M)} · ${MAPS[M.map].name}`; $('#brT').textContent = M.en; $('#brM').textContent = M.title;
   $('#brS').style.visibility = 'hidden'; document.querySelector('#brief .card').style.opacity = 1;
   $('#touch').hidden = true; state = 'brief'; msgs.length = 0;
 }
@@ -4742,7 +4976,7 @@ function endBrief() {
     const P = player, S = BRF.save; P.mesh.userData.gearSet(0); BRF.carrier = null; P.pos.copy(S.pos); P.quat.copy(S.quat); P.speed = S.speed || 260; P.throttle = .55; P.vel.set(0, 0, -1).applyQuaternion(P.quat).multiplyScalar(P.speed); P.velDir.set(0, 0, -1).applyQuaternion(P.quat);
     BRF.fix = null; BRF.camInit = false; state = 'play'; post.first = true; last = performance.now();
     $('#touch').hidden = !isTouch; $('#brF').style.opacity = 0; setTimeout(() => { $('#brief').hidden = true; }, 600);
-    showMsg(`MISSION ${String(CAMP.m.id).padStart(2, '0')}  ${CAMP.m.en.toUpperCase()}`, HUDC, 4, true);
+    showMsg(`${CAMP.m.extra ? 'EXTRA' : 'MISSION'} ${mtag(CAMP.m)}  ${CAMP.m.en.toUpperCase()}`, HUDC, 4, true);
   }, 650);
 }
 addEventListener('keydown', e => { if (state === 'brief' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'Escape')) { endBrief(); e.preventDefault(); } });
@@ -4750,7 +4984,7 @@ addEventListener('keydown', e => { if (state === 'brief' && (e.code === 'Enter' 
 // HUD block for campaign missions (top-left) + friendly markers
 function drawCampHud(c, s, pad, blink, font) {
   const M = CAMP.m;
-  c.fillText(`MISSION ${String(M.id).padStart(2, '0')}  ·  KILLS ${kills}` + (opts.beginner ? '  ·  BEGINNER' : ''), pad, pad); font(12, JP);
+  c.fillText(`${M.extra ? 'EXTRA' : 'MISSION'} ${mtag(M)}  ·  KILLS ${kills}` + (opts.beginner ? '  ·  BEGINNER' : ''), pad, pad); font(12, JP);
   c.fillText(CAMP.obj, pad, pad + 18 * s); font(12);
   if (CAMP.status) { c.fillStyle = CAMP.status[1] && blink ? WARN : CAMP.status[1] ? AMBER : HUDC; c.fillText(CAMP.status[0], pad, pad + 38 * s); c.fillStyle = HUDC; }
   c.fillStyle = timeLeft < 60 && blink ? WARN : HUDC; font(22); c.fillText(fmtTime(timeLeft), pad, pad + 56 * s); c.fillStyle = HUDC;
@@ -4771,13 +5005,20 @@ function openCampaign() {
 function closeCampaign() { state = 'title'; $('#camp').hidden = true; $('#title').hidden = false; menuShow('story'); setTimeout(() => $('#storyBtn').focus(), 50); }
 function renderCampaign() {
   const done = campCleared();
-  $('#campList').innerHTML = CMISSIONS.map((m, i) => { const lock = i > done; return `<button class="cl${i === campSel ? ' on' : ''}" data-i="${i}" ${lock ? 'disabled' : ''}>
-    <span class="cl-n">${String(m.id).padStart(2, '0')}</span><span class="cl-t">${lock ? '― LOCKED ―' : m.title}</span>${i < done ? '<span class="cl-ok">CLEAR</span>' : ''}</button>`; }).join('');
+  const sv = campSave.get(), xd = sv.x || {};
+  $('#campList').innerHTML = CMISSIONS.map((m, i) => { const lock = m.extra ? done < 10 : i > done, ok = m.extra ? !!xd[m.id] : i < done;
+    return (m.extra && !CMISSIONS[i - 1].extra ? '<div class="cl-sep">EXTRA — 追加章</div>' : '') + `<button class="cl${i === campSel ? ' on' : ''}" data-i="${i}" ${lock ? 'disabled' : ''}>
+    <span class="cl-n">${mtag(m)}</span><span class="cl-t">${lock ? (m.extra ? '― 全10話クリアで解放 ―' : '― LOCKED ―') : m.title}</span>${ok ? '<span class="cl-ok">CLEAR</span>' : ''}</button>`; }).join('');
   document.querySelectorAll('#campList .cl').forEach(b => { b.addEventListener('click', () => { campSel = +b.dataset.i; renderCampaign(); }); b.addEventListener('dblclick', () => { campSel = +b.dataset.i; readOpts(); if (sortieOk()) startBrief(campSel); }); });
   const m = CMISSIONS[campSel], sky = { dawn: '夜明け', morning: '朝', overcast: '曇天', noon: '昼', dusk: '夕方', evening: '夕暮れ', storm: '嵐の夜', cold: '寒冷・晴天', sunset: '日没' }[MAPS[m.map].sky];
-  $('#cbKicker').textContent = `Mission ${String(m.id).padStart(2, '0')} · ${MAPS[m.map].name} · ${sky} · 制限時間 ${fmtTime(m.time)}`;
+  $('#cbKicker').textContent = `${m.extra ? 'Extra' : 'Mission'} ${mtag(m)} · ${MAPS[m.map].name} · ${sky} · 制限時間 ${fmtTime(m.time)}`;
   $('#cbTitle').textContent = `${m.title}  —  ${m.en}`; $('#cbStory').textContent = m.story;
   $('#cbFacts').innerHTML = m.facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const lk = $('#cbLock'); lk.hidden = !m.lock; lk.textContent = '';
+  if (m.lock) { const ids = lockChoices(m); if (!ids.includes(CAMP.lockPick)) CAMP.lockPick = ids[0];
+    const lab = document.createElement('span'); lab.className = 'note'; lab.textContent = '固定武器（このミッションはこの中から1つ）：'; lk.append(lab);
+    for (const id of ids) { const pt = PARTS.special.find(x => x.id === id), b = document.createElement('button'); b.type = 'button'; b.className = 'btn sm' + (CAMP.lockPick === id ? '' : ' ghost'); b.textContent = pt.n; b.title = pt.d;
+      b.addEventListener('click', () => { CAMP.lockPick = id; renderCampaign(); }); lk.append(b); } }
 }
 
 function update(dt) {
@@ -4794,6 +5035,7 @@ function update(dt) {
   for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].removed) enemies.splice(i, 1);
   for (const g of grounds) updateGround(g, dt);
   if (CAMP.m && mode === 'mission') campTick(dt);
+  if (mode === 'mission' && state === 'play' && !missionResult && player.alive && player.pos.y - Math.max(floorAt(player.pos.x, player.pos.z), 0) < 150) achAdd('low', dt);
   if (mode === 'mission') supplyStep(dt);
   tracerStep(dt);
   for (const e of enemies) if (e.kind === 'air' && !e.dead && e.dir && e.pos.y < 70) surfaceFx(e.pos, _v4.copy(e.dir).multiplyScalar(e.speed || 200), e.speed || 200, dt, .7);
@@ -4849,7 +5091,11 @@ function showResult() {
   const rows = [['撃破数', kills], ['撃破スコア', score], ['残り時間ボーナス', win ? '+' + tb : '—'], ['被弾ペナルティ', win ? '−' + dmgPen : '—'], ['最大G', player.maxG.toFixed(1) + ' G'], ['経過時間', fmtTime(missionTime)], ['TOTAL', total]];
   if (!win) rows.unshift(['原因', player.failReason || '—']);
   $('#stats').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-  $('#rank').textContent = !win ? '—' : opts.beginner ? 'EASY' : total >= 21000 ? 'S' : total >= 19000 ? 'A' : total >= 16500 ? 'B' : 'C';
+  const rk = !win ? '—' : opts.beginner ? 'EASY' : total >= 21000 ? 'S' : total >= 19000 ? 'A' : total >= 16500 ? 'B' : 'C';
+  $('#rank').textContent = rk;
+  if (win && CAMP.m && !CAMP.m.extra && achOn()) { const sv = campSave.get(); sv.ranks = sv.ranks || {}; const ord = 'CBAS'; if (ord.indexOf(rk) > ord.indexOf(sv.ranks[CAMP.m.id] || '-')) { sv.ranks[CAMP.m.id] = rk; campSave.set(sv); }
+    if (Object.values(sv.ranks).filter(r => r === 'S').length >= 10) achUnlock('allS'); }
+  if (ACH.session.length) { $('#stats').innerHTML += ACH.session.map(a => `<dt>🏆 実績解放</dt><dd>${a.n}（${a.rw}）</dd>`).join(''); }
   const nb = $('#nextBtn'); if (nb) nb.hidden = !(CAMP.m && win && CAMP.idx < CMISSIONS.length - 1);
   $('#result').hidden = false; (nb && !nb.hidden ? nb : $('#retryBtn')).focus();
   if (SND.ctx) ['engG', 'roarG', 'windG', 'lockG', 'alertG', 'warnG', 'gunG'].forEach(k => SND[k].gain.value = 0);
@@ -4907,6 +5153,8 @@ $('#readyBtn').addEventListener('click', () => { NET.rdy = NET.rdy ? 0 : 1; upda
 document.querySelectorAll('#mrModeRow [data-mode]').forEach(b => b.addEventListener('click', () => { if (roster()[0] !== NET.me) return; NET.mode = b.dataset.mode; updateMroomUI(true); }));
 document.querySelectorAll('#mrDiffRow [data-diff]').forEach(b => b.addEventListener('click', () => { if (roster()[0] !== NET.me) return; NET.diff = b.dataset.diff; updateMroomUI(true); }));
 $('#mrLeave').addEventListener('click', toTitle);
+$('#achClose').addEventListener('click', () => { $('#ach').hidden = true; });
+$('#hgAch').addEventListener('click', renderAch); $('#cbAch').addEventListener('click', renderAch);
 $('#mresClose').addEventListener('click', () => { hideMpResult(); if (state === 'mlobby') $('#readyBtn').focus(); });
 $('#mrRes').addEventListener('click', () => showMpResult(NET.lastRes));
 $('#pauseRes').addEventListener('click', () => { const mt = NET.view; if (mt) showMpResult(mpSnapshot(mt, false)); });
@@ -4952,7 +5200,7 @@ player.pos.set(0, 3000, 14500);
 resize();
 updateLoadoutSummary(); menuFocus();
 // test hook, local dev server only
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { get smoke() { return smoke; }, showMpResult, mpSnapshot, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d) => damage(e, d, true), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
 requestAnimationFrame(frame);
 })();
 </script>
