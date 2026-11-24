@@ -807,11 +807,6 @@ const missileGeo = (() => {
 })();
 const missileMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: .25, roughness: .45 });
 function makeMissileMesh() { return new THREE.Mesh(missileGeo, missileMat); }
-const rocketGeo = (() => { const parts = [], rx = g => { g.rotateX(-Math.PI / 2); return g; };
-  parts.push({ geo: rx(new THREE.CylinderGeometry(.09, .09, 1.5, 8)), color: 0x3c4046 });
-  parts.push({ geo: rx(new THREE.ConeGeometry(.09, .3, 8)).translate(0, 0, -.9), color: 0xc8302a });
-  for (let k = 0; k < 3; k++) parts.push({ geo: new THREE.BoxGeometry(.02, .2, .3).translate(0, .16, .6).rotateZ(k * Math.PI * 2 / 3), color: 0x2a2d30 });
-  return mergeParts(parts); })();
 const bombGeo = (() => { const parts = [], rx = g => { g.rotateX(-Math.PI / 2); return g; };
   parts.push({ geo: rx(new THREE.CylinderGeometry(.32, .32, 1.6, 12)), color: 0x4d5a3c });
   parts.push({ geo: rx(new THREE.SphereGeometry(.32, 12, 8)).translate(0, 0, -.8), color: 0x4d5a3c });
@@ -819,6 +814,50 @@ const bombGeo = (() => { const parts = [], rx = g => { g.rotateX(-Math.PI / 2); 
   parts.push({ geo: rx(new THREE.CylinderGeometry(.33, .33, .08, 12)).translate(0, 0, -.35), color: 0xd4a62a });
   for (let k = 0; k < 4; k++) parts.push({ geo: new THREE.BoxGeometry(.03, .5, .5).translate(0, .3, 1.45).rotateZ(Math.PI / 4 + k * Math.PI / 2), color: 0x3f4a31 });
   return mergeParts(parts); })();
+
+/* ===== weapon models: every special weapon is modelled on a real store ===== */
+const WG = (() => {
+  const rx = g => { g.rotateX(-Math.PI / 2); return g; };
+  const ogiveG = (len, r, tip) => { const pts = []; for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push(new THREE.Vector2(Math.max(tip, tip + (r - tip) * Math.sqrt(1 - t * t)), t * len)); } return new THREE.LatheGeometry(pts, 14); };
+  // trapezoid fin: chord along Z (trailing edge at zTE), span along Y from the body surface, thickness in X
+  const finG = (zTE, root, tip, span, back, th, y0) => {
+    const tu = Math.max(0, root - tip - back), sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(root, 0); sh.lineTo(tu + tip, span); sh.lineTo(tu, span); sh.closePath();
+    const g = new THREE.ExtrudeGeometry(sh, { depth: th, bevelEnabled: false }); g.rotateY(Math.PI / 2); g.translate(-th / 2, y0 - .02, zTE); return g; };
+  const ring = (g, n, a0 = Math.PI / 4) => { const out = []; for (let k = 0; k < n; k++) out.push(g.clone().rotateZ(a0 + k * Math.PI * 2 / n)); return out; };
+  // spec: L length, r radius, nose {len, tip, col}, body col, bands [[z, w, col]], fins [[zTE, root, tip, span, back, th, n, a0, col]], boxes [[w,h,d,x,y,z,col]], cyls [[r,l,x,y,z,col]]
+  const build = sp => {
+    const parts = [], L = sp.L, r = sp.r, nl = sp.nose.len;
+    parts.push({ geo: rx(new THREE.CylinderGeometry(r, r, L - nl, 12)).translate(0, 0, nl / 2), color: sp.body });
+    parts.push({ geo: rx(ogiveG(nl, r, sp.nose.tip)).translate(0, 0, -L / 2 + nl), color: sp.nose.col });
+    parts.push({ geo: rx(new THREE.CylinderGeometry(r * .78, r * .9, .14, 10)).translate(0, 0, L / 2 + .04), color: 0x25272a }); // nozzle
+    for (const [z, w, col] of sp.bands || []) parts.push({ geo: rx(new THREE.CylinderGeometry(r * 1.015, r * 1.015, w, 12)).translate(0, 0, z), color: col });
+    for (const f of sp.fins || []) for (const g of ring(finG(f[0], f[1], f[2], f[3], f[4], f[5], r), f[6] || 4, f[7] == null ? Math.PI / 4 : f[7])) parts.push({ geo: g, color: f[8] || sp.body });
+    for (const [w, h, d, x, y, z, col] of sp.boxes || []) parts.push({ geo: new THREE.BoxGeometry(w, h, d).translate(x, y, z), color: col });
+    for (const [cr, cl, x, y, z, col] of sp.cyls || []) parts.push({ geo: rx(new THREE.CylinderGeometry(cr, cr, cl, 10)).translate(x, y, z), color: col });
+    const g = mergeParts(parts); g.userData.L = L; return g; };
+  const W = {};
+  // QAAM: AIM-9X Sidewinder — IR dome, small forward canards, four big tail fins, yellow/blue bands
+  W.qaam = build({ L: 3.0, r: .125, body: 0xc9ced2, nose: { len: .55, tip: .05, col: 0x59636e }, bands: [[-.5, .06, 0x2d5a9a], [-.4, .05, 0xd4a62a], [.9, .05, 0x2d5a9a]],
+    fins: [[-.6, .32, .14, .2, .05, .03, 4, Math.PI / 4, 0xb8bec4], [1.5, .46, .2, .32, .1, .03, 4, Math.PI / 4, 0xb8bec4]] });
+  // QAAM-R: IRIS-T — long-chord body strakes, cropped-delta tail fins, red-banded grey body
+  W.qaamr = build({ L: 2.95, r: .125, body: 0x9aa1a6, nose: { len: .5, tip: .07, col: 0x24272a }, bands: [[-.7, .06, 0xc8302a], [.3, .06, 0xc8302a]],
+    fins: [[.15, 1.1, .5, .13, .12, .03, 4, Math.PI / 4, 0x7d848a], [1.5, .55, .26, .28, .1, .03, 4, Math.PI / 4, 0x7d848a]], boxes: [[.05, .05, .4, 0, .16, -.5, 0xe0701c]] });
+  // HVAA: MBDA Meteor — slim dark body, two rectangular ramjet intakes on the flanks, small tail fins
+  W.hvaa = build({ L: 3.7, r: .14, body: 0x303a46, nose: { len: .75, tip: .03, col: 0x6e747c }, bands: [[-.6, .06, 0xe0701c], [1.0, .05, 0xe0701c]],
+    fins: [[1.85, .4, .2, .26, .08, .03, 4, Math.PI / 4, 0x262d36]], boxes: [[.12, .2, 1.4, .2, 0, .1, 0x1b1f24], [.12, .2, 1.4, -.2, 0, .1, 0x1b1f24], [.14, .1, .18, .21, 0, -.62, 0x0a0b0c], [.14, .1, .18, -.21, 0, -.62, 0x0a0b0c]] });
+  // 4AAM: AIM-54 Phoenix — fat white body, black radome, four large long-chord mid-body wings
+  W['4aam'] = build({ L: 4.1, r: .2, body: 0xe6e9ea, nose: { len: .95, tip: .04, col: 0x1b1d20 }, bands: [[-.8, .07, 0x1b1d20], [1.3, .07, 0x1b1d20]],
+    fins: [[.55, 1.6, .55, .62, .55, .04, 4, Math.PI / 4, 0xdfe3e5], [2.05, .5, .26, .3, .1, .03, 4, Math.PI / 4, 0x2a2d30]] });
+  // UGB: Mk-82 "Snakeye" — olive slick bomb with the four big air-brake plates
+  W.ugb = build({ L: 2.5, r: .26, body: 0x4d5a3c, nose: { len: .7, tip: .06, col: 0x4d5a3c }, bands: [[-.25, .09, 0xd4a62a], [.35, .09, 0xd4a62a]],
+    fins: [[1.5, .9, .9, .52, 0, .035, 4, Math.PI / 4, 0x3f4a31]], cyls: [[.05, .3, 0, 0, -1.4, 0x25272a]] });
+  // BNK: GBU-28 bunker buster — very long, slim, pointed; nose canards + tail fins, yellow bands
+  W.bnk = build({ L: 4.3, r: .2, body: 0x4a5738, nose: { len: 1.25, tip: .02, col: 0x3d4830 }, bands: [[-.5, .1, 0xd4a62a], [.7, .1, 0xd4a62a], [1.5, .07, 0xd4a62a]],
+    fins: [[-.85, .28, .12, .17, .05, .03, 4, 0, 0x2f3825], [2.0, .6, .32, .34, .1, .035, 4, Math.PI / 4, 0x2f3825]] });
+  // Hydra 70 rocket (in flight)
+  W.rkt = build({ L: 1.5, r: .07, body: 0x4a5238, nose: { len: .28, tip: .02, col: 0xc8302a }, bands: [[-.1, .05, 0xd4a62a]], fins: [[.75, .26, .26, .17, 0, .02, 4, Math.PI / 4, 0x2a2d30]] });
+  return W; })();
+const rocketGeo = WG.rkt;
 
 function flatPart(points, depth, mat) {
   const sh = new THREE.Shape(); sh.moveTo(points[0][0], points[0][1]); for (let i = 1; i < points.length; i++) sh.lineTo(points[i][0], points[i][1]);
@@ -939,7 +978,13 @@ const AF = {
       { z: 5.0, w: .9, h: .5, y: .22 }, { z: 9.6, w: .45, h: .35, y: .22 }, { z: 11.2, w: .2, h: .2, y: .22 }],
     canopy: { z0: -6.9, z1: -2.6, w: .42, h: .52, y: .6, frame: true }, nacelles: { x: 1.05, y: -.35, z0: -3.8, z1: 8.6, w: .62, h: .66 },
     lerx: true, wing: { rt: [1.7, -.05, -1.0, 4.9], tp: [7.4, 0, 3.2, 4.1], t: .045, hinge: .22 }, stab: { rt: [1.6, -.2, 6.8, 9.6], tp: [4.4, -.2, 8.8, 9.9], piv: [2.2, -.2, 8.4] },
-    fins: [{ x: 1.25, y: .2, rt: [0, 5.2, 8.9], tp: [3.6, 7.8, 9.2], cant: .06 }], nozzle: { x: 1.05, y: -.35, z: 8.6, r: .55 }, pylons: [[6.6, -.3, 2.6], [3.6, -.6, 1.6]], gun: [1.3, .5, -2.6] }
+    fins: [{ x: 1.25, y: .2, rt: [0, 5.2, 8.9], tp: [3.6, 7.8, 9.2], cant: .06 }], nozzle: { x: 1.05, y: -.35, z: 8.6, r: .55 }, pylons: [[6.6, -.3, 2.6], [3.6, -.6, 1.6]], gun: [1.3, .5, -2.6] },
+  // A-10C Thunderbolt II: straight thick wing, two TF34 fans pod-mounted high on the rear fuselage, twin fins on the tailplane tips, 30mm GAU-8 in the nose, huge bubble canopy
+  a10: { len: 16.3, body: [...ogive(-8.15, -6.3, .62, .56, { e: 2.3 }), { z: -4.9, w: .8, h: .74, y: .02, e: 2.2 }, { z: -2.9, w: .86, h: .8, y: .08, e: 2.3 }, { z: -.4, w: .9, h: .8, y: .1, e: 2.4 },
+      { z: 2.0, w: .84, h: .74, y: .14, e: 2.5 }, { z: 4.6, w: .68, h: .58, y: .28, e: 2.6 }, { z: 7.0, w: .42, h: .4, y: .5, e: 2.6 }, { z: 8.15, w: .22, h: .24, y: .62 }],
+    canopy: { z0: -5.7, z1: -1.9, w: .64, h: .7, y: .78, frame: true }, nacelles: { x: 1.62, y: .92, z0: .4, z1: 7.0, w: .72, h: .72 },
+    wing: { rt: [.9, -.05, -1.7, 2.5], tp: [8.75, .5, -.4, 1.9], t: .1, hinge: .3 }, stab: { rt: [.5, .72, 6.0, 8.0], tp: [3.0, .72, 6.3, 7.6], piv: [1.2, .72, 7.2] },
+    fins: [{ x: 2.9, y: .72, rt: [0, 6.0, 8.0], tp: [2.6, 6.5, 7.7], cant: 0 }], nozzle: { x: 1.62, y: .92, z: 7.0, r: .5 }, pylons: [[6.2, -.2, .2], [3.4, -.35, -.4]], gun: [-.28, -.3, -8.3], gunDecor: true }
 };
 // flat panels catch the sun all at once; cap the direct highlight so a glint flashes instead of whiting out the wing
 function capGlint(sh) { sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n reflectedLight.directSpecular = min(reflectedLight.directSpecular, vec3(0.55));'); }
@@ -1141,14 +1186,41 @@ function makeJet(o) {
   // ---- special-weapon stores
   const spm = new THREE.MeshStandardMaterial({ color: 0x55595e, metalness: .6, roughness: .45 }), belly = shape === 'wing' ? -.45 : -(D.body[5].h * .85 + .15);
   const cyl = (r, l, m, x, y, z) => { const gg = new THREE.CylinderGeometry(r, r, l, 12); gg.rotateX(-Math.PI / 2); const c = new THREE.Mesh(gg, m); c.position.set(x, y, z); g.add(c); return c; };
-  if (o.sp === 'rkt') for (const sx of [-1, 1]) { cyl(.38, 2.4, spm, sx * 1.3, belly, -.4); const f = new THREE.Mesh(new THREE.CircleGeometry(.36, 12), black); f.position.set(sx * 1.3, belly, -1.61); f.rotation.y = Math.PI; g.add(f); }
-  else if (o.sp === 'ugb') for (const sx of [-1, 1]) { const b = new THREE.Mesh(bombGeo, missileMat); b.position.set(sx * 1.15, belly, .6); b.scale.setScalar(1.2); g.add(b); }
-  else if (o.sp === 'tls') { cyl(.34, 3.2, spm, 0, belly, -2.2); const lens = new THREE.Mesh(new THREE.SphereGeometry(.3, 14, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, .6, .5) })); lens.position.set(0, belly, -3.8); g.add(lens); }
-  else if (o.sp === 'eml') { box(.42, .34, 7.2, spm, 0, belly, -2.0); box(.46, .06, 5.4, new THREE.MeshBasicMaterial({ color: new THREE.Color(.6, 2.4, 5) }), 0, belly + .2, -2.0); }
-  else if (o.sp) for (const sx of [-1, 1]) { const m = makeMissileMesh(); m.position.set(sx * .7, belly, .4); m.scale.setScalar(.9); g.add(m); }
+  const stM = new THREE.MeshStandardMaterial({ color: 0x4a4e52, metalness: .55, roughness: .5 }), stD = new THREE.MeshStandardMaterial({ color: 0x1a1c1e, metalness: .5, roughness: .6 }), glowB = new THREE.MeshBasicMaterial({ color: new THREE.Color(.5, 2.2, 5) });
+  const hang = (geo, x, y, z, sc = 1) => { const m = new THREE.Mesh(geo, missileMat); m.position.set(x, y, z); m.scale.setScalar(sc); g.add(m); const py = box(.07, .22, 1.2, stD, x, y + .22 * sc + .1, z); return m; };
+  const tor = (r, t, x, y, z, m) => { const q = new THREE.Mesh(new THREE.TorusGeometry(r, t, 6, 20), m); q.position.set(x, y, z); g.add(q); return q; };
+  if (o.sp === 'rkt') for (const sx of [-1, 1]) { // LAU-68 style 7-tube rocket pod: faired nose, tube cluster, rear cone
+    const px = sx * 1.3; cyl(.4, 2.3, stM, px, belly, -.4); const nc = new THREE.Mesh(new THREE.ConeGeometry(.4, .5, 14), stM); nc.rotation.x = -Math.PI / 2; nc.position.set(px, belly, -1.8); g.add(nc);
+    const tc = new THREE.Mesh(new THREE.ConeGeometry(.4, .5, 14), stM); tc.rotation.x = Math.PI / 2; tc.position.set(px, belly, .98); g.add(tc); box(.08, .3, 1.4, stD, px, belly + .38, -.4);
+    for (let i = 0; i < 7; i++) { const a = i ? (i - 1) / 6 * Math.PI * 2 : 0, rr = i ? .24 : 0; const t = new THREE.Mesh(new THREE.CircleGeometry(.085, 10), black); t.position.set(px + Math.cos(a) * rr, belly + Math.sin(a) * rr, -1.7); t.rotation.y = Math.PI; g.add(t); }
+    tor(.4, .015, px, belly, -1.2, stD); tor(.4, .015, px, belly, .5, stD); }
+  else if (o.sp === 'ugb') for (const sx of [-1, 1]) hang(WG.ugb, sx * 1.15, belly - .1, .5, 1.05);
+  else if (o.sp === 'bnk') for (const sx of [-1, 1]) hang(WG.bnk, sx * 1.0, belly - .1, .2, 1.05);
+  else if (o.sp === 'tls' || o.sp === 'tlsx') { // podded laser: targeting-pod style body, gimballed turret head, heat-sink fins
+    const X = o.sp === 'tlsx', len = X ? 3.8 : 3.0, r = X ? .38 : .32;
+    cyl(r, len, stM, 0, belly, -1.9); const hd = new THREE.Mesh(new THREE.SphereGeometry(r * 1.02, 16, 12), stD); hd.position.set(0, belly, -1.9 - len / 2 - r * .6); g.add(hd);
+    const win = new THREE.Mesh(new THREE.CircleGeometry(r * .62, 18), new THREE.MeshBasicMaterial({ color: X ? new THREE.Color(.5, 2.4, 5) : new THREE.Color(5, .7, .5) })); win.position.set(0, belly, -1.9 - len / 2 - r * 1.6); win.rotation.y = Math.PI; g.add(win);
+    tor(r * .66, .05, 0, belly, -1.9 - len / 2 - r * 1.58, stM);
+    const nf = X ? 7 : 4; for (let i = 0; i < nf; i++) box(r * 2.5, r * 2.5, .04, stM, 0, belly, -1.9 + len / 2 - .15 - i * .16); // cooling fins
+    if (X) { for (const sx of [-1, 1]) box(.12, .22, 1.8, stM, sx * (r + .08), belly + .05, -2.2); box(.08, .3, 1.6, stD, 0, belly + .38, -1.9); const w2 = new THREE.Mesh(new THREE.CircleGeometry(.1, 12), glowB); w2.position.set(0, belly - .18, -1.9 - len / 2 - r * 1.62); w2.rotation.y = Math.PI; g.add(w2); }
+    else box(.08, .3, 1.4, stD, 0, belly + .38, -1.9); }
+  else if (o.sp === 'eml' || o.sp === 'emlx') { // electromagnetic railgun (Navy EMRL type): twin parallel rails, glowing bore gap, capacitor bank, coil rings
+    const X = o.sp === 'emlx', len = X ? 9.2 : 7.2, cz = -2.0;
+    box(.5, .34, len * .55, stM, 0, belly, cz + len * .22); box(.1, .3, 1.6, stD, 0, belly + .36, cz + .2);
+    for (const sx of [-1, 1]) box(X ? .12 : .09, .3, len, stD, sx * .115, belly - .02, cz); // rails
+    box(.1, .06, len, glowB, 0, belly - .02, cz);                                              // plasma-bright bore gap
+    const nCoil = X ? 6 : 3; for (let i = 0; i < nCoil; i++) { const q = tor(.26, .035, 0, belly - .02, cz - len / 2 + .6 + i * (len * .5 / nCoil), X ? new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: .8, roughness: .3 }) : stM); q.scale.set(1, .85, 1); }
+    const nCap = X ? 5 : 3; for (let i = 0; i < nCap; i++) { const c2 = new THREE.Mesh(new THREE.CylinderGeometry(.13, .13, .5, 10), X ? stD : stM); c2.position.set((i - (nCap - 1) / 2) * .27, belly + .38, cz + len * .28); g.add(c2); box(.2, .02, .08, glowB, (i - (nCap - 1) / 2) * .27, belly + .64, cz + len * .28); }
+    box(.5, .22, .7, stD, 0, belly - .06, cz + len / 2 - .2); }
+  else if (o.sp === '4aam') { for (const sx of [-1, 1]) { hang(WG['4aam'], sx * .62, belly - .08, .2, .75); hang(WG['4aam'], sx * 1.32, belly + .2, .4, .75); } }
+  else if (WG[o.sp]) for (const sx of [-1, 1]) hang(WG[o.sp], sx * .7, belly - .05, .4, 1);
   const gp = D ? D.gun : [.95, .35, -6.3];
   const mf = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(5, 3.6, 1.6), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-  mf.position.set(gp[0], gp[1], gp[2] - 1); mf.scale.setScalar(2.2); mf.visible = false; g.add(mf); u.muzzle = mf;
+  mf.position.set(gp[0], gp[1], gp[2] - 1); mf.scale.setScalar(2.2); mf.visible = false; g.add(mf); u.muzzle = mf; u.gunX = gp[0]; u.gunY = gp[1];
+  if (o.gunN === 2) { const m2 = mf.clone(); m2.material = mf.material; m2.position.set(-gp[0], gp[1], gp[2] - 1); m2.visible = false; g.add(m2); u.muzzle2 = m2;
+    for (const sx of [-1, 1]) { const brl = new THREE.Mesh(new THREE.CylinderGeometry(.07, .08, 1.3, 8), metal); brl.rotation.x = Math.PI / 2; brl.position.set(sx * gp[0], gp[1], gp[2] + .1); g.add(brl); } }
+  if (D && D.gunDecor) { const gg = new THREE.Group(); gg.position.set(gp[0], gp[1], gp[2] + .2); g.add(gg); const hs = new THREE.Mesh(new THREE.CylinderGeometry(.34, .34, .5, 14), dark); hs.rotation.x = Math.PI / 2; hs.position.z = .1; gg.add(hs);
+    for (let k = 0; k < 7; k++) { const a = k ? (k - 1) / 6 * Math.PI * 2 : 0, rr = k ? .21 : 0, br = new THREE.Mesh(new THREE.CylinderGeometry(.065, .07, 1.5, 8), metal); br.rotation.x = Math.PI / 2; br.position.set(Math.cos(a) * rr, Math.sin(a) * rr, -.55); gg.add(br); } }
   u.tips = shape === 'wing' ? [new V3(-12.9, .15, 3.6), new V3(12.9, .15, 3.6)] : [new V3(-D.wing.tp[0], D.wing.tp[1], (D.wing.tp[2] + D.wing.tp[3]) / 2 + .3), new V3(D.wing.tp[0], D.wing.tp[1], (D.wing.tp[2] + D.wing.tp[3]) / 2 + .3)];
   u.exh = shape === 'wing' ? [new V3(-2.4, .66, 5.6), new V3(2.4, .66, 5.6)] : [new V3(-D.nozzle.x, D.nozzle.y || 0, D.nozzle.z + 1.2), new V3(D.nozzle.x, D.nozzle.y || 0, D.nozzle.z + 1.2)];
   addGear(g, u, D, shape, metal, body);
@@ -1512,7 +1584,8 @@ function initAudio() {
     loopNoise().connect(gunF); gunF.connect(gunAmp); gunAmp.connect(gunG); gunG.connect(master);
     const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 26; const lfoG = ctx.createGain(); lfoG.gain.value = .5; lfo.connect(lfoG); lfoG.connect(gunAmp.gain); lfo.start();
     const mk = (f, type) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = f; const g = ctx.createGain(); g.gain.value = 0; o.connect(g); g.connect(master); o.start(); return g; };
-    Object.assign(SND, { o1, o2, engF, engG, roarG, roarF, windG, windF, gunG, lockG: mk(1180, 'square'), alertG: mk(1560, 'square'), warnG: mk(760, 'square') });
+    const rF = ctx.createBiquadFilter(); rF.type = 'bandpass'; rF.frequency.value = 1900; rF.Q.value = .55; const rG = ctx.createGain(); rG.gain.value = 0; loopNoise().connect(rF); rF.connect(rG); rG.connect(master);
+    Object.assign(SND, { radioG: rG, o1, o2, engF, engG, roarG, roarF, windG, windF, gunG, lockG: mk(1180, 'square'), alertG: mk(1560, 'square'), warnG: mk(760, 'square') });
   } catch (e) { SND.ctx = null; }
 }
 function sfxNoise(dur, freq, vol, type = 'lowpass', sweepTo = null, q = 0.8) {
@@ -1525,8 +1598,15 @@ function sfxNoise(dur, freq, vol, type = 'lowpass', sweepTo = null, q = 0.8) {
 // walkie-talkie: squelch break + click when a transmission opens, roger beep + noise tail when it closes
 function sfxRadio(kind) {
   const c = SND.ctx; if (!c || SND.muted) return;
-  if (kind === 'on') { sfxNoise(.2, 2300, .3, 'bandpass', 3400, 1.1); sfxTone(1250, 900, .04, .09, 'square'); setTimeout(() => sfxNoise(.45, 2800, .07, 'bandpass', 1700, .8), 140); }
-  else { sfxTone(2000, 2000, .07, .07, 'square'); setTimeout(() => sfxTone(1550, 1550, .06, .06, 'square'), 85); setTimeout(() => sfxNoise(.22, 2500, .2, 'bandpass', 1400, 1.1), 150); }
+  if (kind === 'on') { // key-up: hard squelch crash, "kerchunk" click, then a steady carrier hiss under the voice
+    sfxNoise(.14, 2600, .7, 'bandpass', 900, .7); sfxNoise(.09, 4200, .35, 'highpass');
+    sfxTone(520, 300, .06, .16, 'square'); setTimeout(() => sfxTone(1900, 1900, .045, .07, 'square'), 70);
+    if (SND.radioG) { SND.radioG.gain.cancelScheduledValues(c.currentTime); SND.radioG.gain.setTargetAtTime(.055, c.currentTime + .12, .03); }
+  } else { // key-down: two-tone roger beep, squelch tail, hiss cut
+    sfxTone(1850, 1850, .08, .13, 'square'); setTimeout(() => sfxTone(1450, 1450, .09, .11, 'square'), 95);
+    setTimeout(() => { sfxNoise(.3, 2200, .55, 'bandpass', 800, .7); sfxTone(380, 240, .05, .14, 'square'); }, 190);
+    if (SND.radioG) { SND.radioG.gain.cancelScheduledValues(c.currentTime); SND.radioG.gain.setTargetAtTime(0, c.currentTime + .22, .03); }
+  }
 }
 function sfxTone(f0, f1, dur, vol, type = 'sine') {
   const c = SND.ctx; if (!c || SND.muted) return; const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
@@ -1682,35 +1762,36 @@ const PARTS = {
   frame: [
     { id: 'striker', n: 'STRIKER', d: 'F-22 ラプター型。バランスのとれたステルス主力機。迷ったらこれ', hp: 1, turn: 1, spd: 1, cap: 100, sc: [1, 1, 1], shape: 'std' },
     { id: 'interceptor', n: 'INTERCEPTOR', d: 'ユーロファイター・タイフーン型。カナード付きデルタ翼の高速機。装甲は薄い', hp: .75, turn: 1.14, spd: 1.22, cap: 80, sc: [1, 1, 1], shape: 'delta' },
-    { id: 'fortress', n: 'FORTRESS', d: 'F-15E ストライクイーグル型。大型の重戦闘機。旋回は重いがとにかく硬い', hp: 1.45, turn: .84, spd: .82, cap: 140, sc: [1, 1, 1], shape: 'heavy' },
+    { id: 'fortress', n: 'FORTRESS', d: 'F-15E ストライクイーグル型。大型の重戦闘機。旋回は重いがとにかく硬い', hp: 1.45, turn: .84, spd: .82, cap: 140, sc: [1, 1, 1], shape: 'heavy', gunN: 2, gm: .7 },
     { id: 'spectre', n: 'SPECTRE', d: 'B-2 型の全翼ステルス機。敵ミサイルの追尾が鈍る。積載にも余裕', hp: .9, turn: .9, spd: .96, cap: 115, sc: [1, 1, 1], shape: 'wing', stealth: true },
-    { id: 'raptor', n: 'RAPTOR', d: 'Su-47 ベールクト型。前進翼の格闘戦機。旋回性能がずば抜けて高い', hp: .85, turn: 1.25, spd: 1.12, cap: 90, sc: [1, 1, 1], shape: 'fsw' },
+    { id: 'raptor', n: 'RAPTOR', d: 'Su-47 ベールクト型。前進翼の格闘戦機。旋回性能がずば抜けて高い', hp: .85, turn: 1.25, spd: 1.12, cap: 90, sc: [1, 1, 1], shape: 'fsw', gunN: 2, gm: .65 },
     // extreme builds: deliberately lopsided, for players who want a monster
     { id: 'meteor', n: 'METEOR', d: '【極端】ほぼロケット。最高速は標準機の2倍だが、ほとんど曲がれない。一撃離脱専用', hp: .6, turn: .32, spd: 2, cap: 70, sc: [.85, .8, 1.3], shape: 'delta' },
     { id: 'hummingbird', n: 'HUMMINGBIRD', d: '【極端】その場で回れるほどの旋回性能。そのかわり遅くて紙装甲', hp: .55, turn: 2.2, spd: .6, cap: 85, sc: [.82, .9, .82], shape: 'fsw' },
-    { id: 'bastion', n: 'BASTION', d: '【極端】突撃重戦車。体当たりしても自分は壊れず弾き返すだけ。ぶつけて落とせ！（敵機は一撃、ボスにも大ダメージ）', hp: 2.4, turn: .62, spd: .8, cap: 200, sc: [1.18, 1.2, 1.15], shape: 'heavy', ram: true }],
+    { id: 'bastion', n: 'BASTION', d: '【極端】突撃重戦車。体当たりしても自分は壊れず弾き返すだけ。ぶつけて落とせ！（敵機は一撃、ボスにも大ダメージ）', hp: 2.4, turn: .62, spd: .8, cap: 200, sc: [1.18, 1.2, 1.15], shape: 'heavy', ram: true, gunN: 2, gm: .7 },
+    { id: 'warthog', n: 'THUNDERBOLT', d: '【全クリ報酬】A-10C サンダーボルトII型。チタンの装甲に包まれた対地攻撃機。鈍足だが非常に硬く、機首の30mm砲の威力が1.4倍', hp: 1.75, turn: 1.0, spd: .62, cap: 170, sc: [1, 1, 1], shape: 'a10', gm: 1.4, ach: 'allclear' }],
   engine: [
     { id: 'std', n: 'F110 標準', d: 'クセのない標準エンジン', thr: 1, w: 30 },
     { id: 'turbo', n: 'TURBOFAN-X', d: '加速もアフターバーナーも強力。ただし重い', thr: 1.14, w: 45 },
     { id: 'light', n: 'LIGHT CORE', d: '軽量。そのぶん推力はやや低い', thr: .92, w: 15 }],
   special: [
-    { id: 'qaam', n: 'QAAM', d: '高機動ミサイル。射程は短いが急旋回で追いかける', w: 30, ammo: 18, cd: 1.2, range: 3600, cone: .6, lock: .35, turn: 4.2, spd: 720, acc: 450, life: 6.5, vd: 34 },
-    { id: 'hvaa', n: 'HVAA', d: '超高速・長射程ミサイル。曲がりにくいので正面から', w: 25, ammo: 16, cd: 2, range: 8000, cone: .32, lock: .9, turn: 1.25, spd: 1150, acc: 750, life: 9, vd: 46 },
-    { id: '4aam', n: '4AAM', d: '最大4目標を同時ロックして一斉発射', w: 40, ammo: 12, cd: 3.2, range: 5000, cone: .62, lock: .25, turn: 2.4, spd: 780, acc: 400, life: 9, vd: 30, multi: 4 },
-    { id: 'rkt', n: 'RKT', d: 'ロケット8発を一斉発射。無誘導だが近距離で強烈', w: 25, ammo: 14, cd: 1.2, range: 2500, cone: .2, lock: 99, vd: 14, kind: 'rocket' },
-    { id: 'ugb', n: 'UGB', d: '無誘導爆弾。爆風で周りの敵や地上施設をまとめて吹き飛ばす', w: 30, ammo: 16, cd: .8, range: 3000, cone: .3, lock: 99, vd: 30, kind: 'bomb' },
-    { id: 'tls', n: 'TLS', d: '押しっぱなしで照射する戦術レーザー。照準に重ねて焼き切る（エネルギー20秒）', w: 45, ammo: 20, cd: 0, range: 3500, cone: .08, lock: 99, vd: 45, kind: 'laser' },
-    { id: 'eml', n: 'EML', d: 'レールガン。太い超高速弾が一直線に貫き、後ろに重なった目標（最大5体）まで撃ち抜く', w: 40, ammo: 14, cd: 1.4, range: 7000, cone: .05, lock: 99, vd: 80, kind: 'rail', dmg: 520, pierce: 5, fat: 12 },
+    { id: 'qaam', n: 'QAAM', d: 'AIM-9X サイドワインダー型。射程は短いが急旋回で追いかける高機動ミサイル', w: 30, ammo: 18, cd: 1.2, range: 3600, cone: .6, lock: .35, turn: 4.2, spd: 720, acc: 450, life: 6.5, vd: 34 },
+    { id: 'hvaa', n: 'HVAA', d: 'MBDA ミーティア型（ラムジェット）。超高速・長射程。曲がりにくいので正面から', w: 25, ammo: 16, cd: 2, range: 8000, cone: .32, lock: .9, turn: 1.25, spd: 1150, acc: 750, life: 9, vd: 46 },
+    { id: '4aam', n: '4AAM', d: 'AIM-54 フェニックス型。最大4目標を同時ロックして一斉発射', w: 40, ammo: 12, cd: 3.2, range: 5000, cone: .62, lock: .25, turn: 2.4, spd: 780, acc: 400, life: 9, vd: 30, multi: 4 },
+    { id: 'rkt', n: 'RKT', d: 'ハイドラ70ロケット弾（7連装ポッド）を8発一斉発射。無誘導だが近距離で強烈', w: 25, ammo: 14, cd: 1.2, range: 2500, cone: .2, lock: 99, vd: 14, kind: 'rocket' },
+    { id: 'ugb', n: 'UGB', d: 'Mk-82 スネークアイ型の無誘導爆弾。爆風で周りの敵や地上施設をまとめて吹き飛ばす', w: 30, ammo: 16, cd: .8, range: 3000, cone: .3, lock: 99, vd: 30, kind: 'bomb' },
+    { id: 'tls', n: 'TLS', d: 'ポッド搭載の戦術レーザー。押しっぱなしで照射し、照準に重ねて焼き切る（エネルギー20秒）', w: 45, ammo: 20, cd: 0, range: 3500, cone: .08, lock: 99, vd: 45, kind: 'laser' },
+    { id: 'eml', n: 'EML', d: '米海軍EMRL型の電磁レールガン。太い超高速弾が一直線に貫き、後ろに重なった目標（最大5体）まで撃ち抜く', w: 40, ammo: 14, cd: 1.4, range: 7000, cone: .05, lock: 99, vd: 80, kind: 'rail', dmg: 520, pierce: 5, fat: 12 },
     // ---- unlocked by achievements ----
-    { id: 'qaamr', n: 'QAAM-R', d: '【実績】QAAMの改良型。旋回、射程、威力すべてが強化された高機動ミサイル', w: 34, ammo: 18, cd: 1.1, range: 4400, cone: .66, lock: .3, turn: 5.2, spd: 800, acc: 520, life: 7, vd: 38, dmg: 130, ach: 'msl300' },
-    { id: 'bnk', n: 'BNK', d: '【実績】貫通爆弾。装甲を貫いて大爆発。爆風はUGBの1.5倍、装甲目標（戦艦・空母・ボス）には2.5倍のダメージ。ただし6発だけ', w: 50, ammo: 6, cd: 1.3, range: 3000, cone: .3, lock: 99, vd: 55, kind: 'bomb', dmg: 520, rad: 210, amul: 2.5, ach: 'bomb100' },
+    { id: 'qaamr', n: 'QAAM-R', d: '【実績】IRIS-T型。QAAMの上位版で、旋回、射程、威力すべてが強化された高機動ミサイル', w: 34, ammo: 18, cd: 1.1, range: 4400, cone: .66, lock: .3, turn: 5.2, spd: 800, acc: 520, life: 7, vd: 38, dmg: 130, ach: 'msl300' },
+    { id: 'bnk', n: 'BNK', d: '【実績】GBU-28型の貫通爆弾。装甲を貫いて大爆発。爆風はUGBの1.5倍、装甲目標（戦艦・空母・ボス）には2.5倍のダメージ。ただし6発だけ', w: 50, ammo: 6, cd: 1.3, range: 3000, cone: .3, lock: 99, vd: 55, kind: 'bomb', dmg: 520, rad: 210, amul: 2.5, ach: 'bomb100' },
     { id: 'emlx', n: 'EML-II', d: '【実績】レールガン改。威力800、弾がさらに太く、最大6体まで貫通する', w: 45, ammo: 14, cd: 1.2, range: 8000, cone: .05, lock: 99, vd: 110, kind: 'rail', dmg: 800, pierce: 6, fat: 22, ach: 'rail10' },
     { id: 'tlsx', n: 'TLS-X', d: '【実績】戦術レーザー改。出力が高く、エネルギーも30秒もつ', w: 50, ammo: 30, cd: 0, range: 4200, cone: .08, lock: 99, vd: 60, kind: 'laser', dps: 260, ach: 'bossClean' }],
   gun: [
-    { id: 'm61', n: 'M61 20mm', d: '連射速度が高い標準機関砲', w: 10, rate: 26, dmg: 9, vd: 5, spd: 1300 },
-    { id: 'gau', n: 'GAU 30mm', d: '連射は遅いが一発が重い', w: 20, rate: 14, dmg: 20, vd: 11, spd: 1150 },
-    { id: 'pulse', n: 'PULSE', d: 'パルスレーザー機関砲。弾がほぼ一瞬で届くのでとても当てやすい', w: 25, rate: 18, dmg: 12, vd: 6, spd: 2600 },
-    { id: 'gau8', n: 'GAU-8 ROTARY', d: '【実績】7銃身の回転機関砲。連射も威力も高い重量級', w: 35, rate: 30, dmg: 17, vd: 9, spd: 1250, ach: 'lowalt' }],
+    { id: 'm61', n: 'M61 20mm', d: '連射速度が高い標準機関砲', w: 10, rate: 26, dmg: 12, vd: 5, spd: 1300 },
+    { id: 'gau', n: 'GAU 30mm', d: '連射は遅いが一発が重い', w: 20, rate: 14, dmg: 28, vd: 11, spd: 1150 },
+    { id: 'pulse', n: 'PULSE', d: 'パルスレーザー機関砲。弾がほぼ一瞬で届くのでとても当てやすい', w: 25, rate: 18, dmg: 15, vd: 6, spd: 2600 },
+    { id: 'gau8', n: 'GAU-8 ROTARY', d: '【実績】7銃身の回転機関砲。連射も威力も高い重量級', w: 35, rate: 30, dmg: 22, vd: 9, spd: 1250, ach: 'lowalt' }],
   armor: [
     { id: 'none', n: 'なし', d: '追加装甲なし', w: 0, hp: 0, turn: 0 },
     { id: 'a1', n: '追加装甲 I', d: '耐久 +15%／旋回 -3%', w: 20, hp: .15, turn: -.03 },
@@ -1738,14 +1819,17 @@ const ACH_DEF = [
   { id: 'rail10', n: '一閃', d: 'レールガンの貫通で累計10体撃破（先頭の目標以外）', rw: 'EML-II', cnt: 'railKill', need: 10 },
   { id: 'bossClean', n: 'ノーダメージ撃破', d: '被弾せずにボスを撃破', rw: 'TLS-X' },
   { id: 'mpwin10', n: '対戦の覇者', d: 'マルチ対戦で累計10勝', rw: '塗装 VERSUS', cnt: 'mpWin', need: 10 },
+  { id: 'allclear', n: '全戦線制覇', d: '本編10話と追加章5話をすべてクリア', rw: '新機体 THUNDERBOLT（A-10C）', pr: () => [Math.min(10, campCleared()) + Object.keys(campSave.get().x || {}).length, 15] },
   { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全5話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 5] }];
 if (campSave_init()) ACH.u.camp10 = ACH.u.camp10 || Date.now();
+try { const cs = JSON.parse(localStorage.getItem('skylance-camp') || '{}'); if ((cs.cleared || 0) >= 10 && Object.keys(cs.x || {}).length >= 5) { if (!ACH.u.extraAll) ACH.u.extraAll = Date.now(); if (!ACH.u.allclear) { ACH.u.allclear = Date.now(); ACH.pend.push('allclear'); } } } catch (e) {}
 const achHas = id => !!ACH.u[id];
 const partLocked = pt => !!(pt && pt.ach && !ACH.u[pt.ach]);
 const achOn = () => !opts.beginner && mode !== 'tutorial' && mode !== 'multi';
 function achUnlock(id) {
   if (ACH.u[id]) return; const a = ACH_DEF.find(x => x.id === id); if (!a) return;
   ACH.u[id] = Date.now(); ACH.pend.push(id); achSave(); ACH.session.push(a);
+  if ((id === 'camp10' || id === 'extraAll') && ACH.u.camp10 && ACH.u.extraAll) setTimeout(() => achUnlock('allclear'), 2500);
   try { showMsg('ACHIEVEMENT  ' + a.n, AMBER, 4.5, true); showMsg('帰還後、ロビーに連絡が届く', HUDC, 4.5); sfxTone(660, 1320, .4, .12, 'triangle'); setTimeout(() => sfxTone(990, 1980, .5, .08, 'triangle'), 160); } catch (e) {}
 }
 function achAdd(key, n = 1, force) {
@@ -1759,14 +1843,14 @@ try { const sv = JSON.parse(localStorage.getItem('skylance-loadout') || '{}'); f
   if (sv.custom) for (const c of ['body', 'dark', 'tail']) if (HEX.test(sv.custom[c] || '')) LO.custom[c] = sv.custom[c]; } catch (e) {}
 const saveLoadout = () => { try { localStorage.setItem('skylance-loadout', JSON.stringify(LO)); } catch (e) {} };
 function paintColors() { const p = part('paint'); return p.custom ? { body: parseInt(LO.custom.body.slice(1), 16), dark: parseInt(LO.custom.dark.slice(1), 16), tail: parseInt(LO.custom.tail.slice(1), 16) } : { body: p.body, dark: p.dark, tail: p.tail }; }
-function lookParams() { const c = paintColors(); return { shape: part('frame').shape, body: c.body, dark: c.dark, tail: c.tail, armor: LO.armor, eng: part('engine').id, sp: part('special').id }; }
+function lookParams() { const c = paintColors(); return { shape: part('frame').shape, body: c.body, dark: c.dark, tail: c.tail, armor: LO.armor, eng: part('engine').id, sp: part('special').id, gunN: part('frame').gunN || 1 }; }
 const part = k => PARTS[k][LO[k]];
 function loadWeight() { return part('engine').w + part('special').w + part('gun').w + part('armor').w; }
 const overweight = () => loadWeight() > part('frame').cap;
 function stats() {
   const f = part('frame'), a = part('armor'), e = part('engine'), g = part('gun');
   const load = loadWeight() / f.cap; // a heavily loaded jet is slower
-  return { hp: f.hp + a.hp, turn: f.turn * (1 + a.turn), spd: f.spd * (1.06 - .12 * load) * (a.id === 'a2' ? .96 : 1), thr: e.thr, gunRate: g.rate, gunDmg: g.dmg, gunVd: g.vd, gunSpd: g.spd || 1300, sp: part('special'), stealth: !!f.stealth, ramFrame: !!f.ram };
+  return { hp: f.hp + a.hp, turn: f.turn * (1 + a.turn), spd: f.spd * (1.06 - .12 * load) * (a.id === 'a2' ? .96 : 1), thr: e.thr, gunRate: g.rate, gunDmg: g.dmg * (f.gm || 1), gunVd: g.vd * (f.gm || 1), gunN: f.gunN || 1, gunSpd: g.spd || 1300, sp: part('special'), stealth: !!f.stealth, ramFrame: !!f.ram };
 }
 let ST = stats();
 // base HP per mode: versus lasts much longer than the solo campaign
@@ -1792,7 +1876,7 @@ const player = {
   g: 1, maxG: 1, aoa: 0, agl: 1000, radius: 12, mesh: null, kind: 'player', prevSpeed: 250, brake: false
 };
 const enemies = [], grounds = [], missiles = [], decoys = [], debris = [], waves = [], popups = [], timers = [];
-const MAXB = 160; const bullets = []; let bulletLine, streaks;
+const MAXB = 260; const bullets = []; let bulletLine, streaks;
 const groundMat = {
   main: new THREE.MeshStandardMaterial({ color: 0x5d6650, roughness: .8 }), base: new THREE.MeshStandardMaterial({ color: 0x3d4238, roughness: .9 }),
   white: new THREE.MeshStandardMaterial({ color: 0xd6d8d2, roughness: .6 }), wreck: new THREE.MeshStandardMaterial({ color: 0x1e1c1a, roughness: 1 })
@@ -2148,7 +2232,7 @@ function fireSpecial() {
   if (sp.kind === 'bomb') {
     P.sp--; P.spCd = sp.cd; _v1.set(0, -1.6, 0).applyQuaternion(P.quat).add(P.pos);
     const m = launchMissile(null, _v1, P.fwd, P.speed, null, 'player', P.up, 999, P.vel, 3);
-    Object.assign(m, { bomb: true, life: 40, dmg: sp.dmg || 260, rad: sp.rad || 140, amul: sp.amul || 1, vdmg: sp.vd }); m.mesh.geometry = bombGeo; m.exh.visible = false; sfxNoise(.3, 300, .3, 'lowpass'); return;
+    Object.assign(m, { bomb: true, life: 40, dmg: sp.dmg || 260, rad: sp.rad || 140, amul: sp.amul || 1, vdmg: sp.vd }); m.mesh.geometry = WG[sp.id] || bombGeo; m.exh.visible = false; sfxNoise(.3, 300, .3, 'lowpass'); return;
   }
   if (sp.kind === 'rail') { P.sp--; P.spCd = sp.cd; fireRail(); return; }
   const inEnv = t => t && t.alive && t.pos.distanceTo(P.pos) < sp.range && P.fwd.angleTo(_v4.subVectors(t.pos, P.pos)) < sp.cone;
@@ -2158,7 +2242,7 @@ function fireSpecial() {
   targets.forEach((t, k) => {
     _v1.set((k % 2 ? 1 : -1) * (1.2 + (k >> 1) * 1.6), -1.3, 1).applyQuaternion(P.quat).add(P.pos);
     const m = launchMissile(null, _v1, P.fwd, P.speed, t, 'player', P.up, .18 + k * .06, P.vel, 7);
-    Object.assign(m, { turn: sp.turn, maxSpeed: sp.spd, acc: sp.acc, life: sp.life, dmg: sp.dmg || 100, vdmg: sp.vd });
+    Object.assign(m, { turn: sp.turn, maxSpeed: sp.spd, acc: sp.acc, life: sp.life, dmg: sp.dmg || 100, vdmg: sp.vd }); if (WG[sp.id]) { m.mesh.geometry = WG[sp.id]; m.exh.position.z = WG[sp.id].userData.L / 2 + .2; }
   });
   P.mlocks = [];
 }
@@ -2354,16 +2438,16 @@ function killPlayer(reason, killer) {
   missionResult = 'fail'; endTimer = 3.5; player.failReason = reason; gunFiring = false;
   radio('NIGHTJAR', 'ケストレル1！？…ケストレル1、応答しろ！', 4, true);
 }
-function fireBullet() {
-  const b = bullets.find(x => x.life <= 0); if (!b) return;
-  b.pos.copy(player.pos).addScaledVector(player.fwd, 7).addScaledVector(player.right, .95).addScaledVector(player.up, .35);
+function fireBullet(k = 0) {
+  const b = bullets.find(x => x.life <= 0); if (!b) return; const ud = player.mesh.userData, gx = ud.gunX != null ? ud.gunX : .95, gy = ud.gunY != null ? ud.gunY : .35;
+  b.pos.copy(player.pos).addScaledVector(player.fwd, 7).addScaledVector(player.right, k ? -gx : gx).addScaledVector(player.up, gy);
   _v2.copy(player.fwd);
   if (curTarget && curTarget.kind === 'air' && curTarget.alive) { // gun assist: bend the stream onto the lead point when roughly on target
     const d = curTarget.pos.distanceTo(b.pos), tof = d / (ST.gunSpd + player.speed * .9);
     if (d < 1900) { _v3.copy(curTarget.pos).addScaledVector(curTarget.vel, tof).sub(b.pos).divideScalar(Math.max(tof, .01)).sub(player.vel).normalize();
       if (_v3.angleTo(player.fwd) < .11) _v2.lerp(_v3, .85).normalize(); } }
   b.vel.copy(_v2).add(_v1.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(.004)).normalize().multiplyScalar(ST.gunSpd).addScaledVector(player.vel, 1);
-  b.life = 1.6; b.fake = false; player.gun--;
+  b.life = 1.6; b.fake = false; if (!k) player.gun--;
 }
 function fireFakeBullet(o) {
   const b = bullets.find(x => x.life <= 0); if (!b) return;
@@ -2382,7 +2466,7 @@ function updateBullets(dt) {
       if (!dead && !b.fake) for (const t of enemies) { if (!t.alive) continue; if (Math.abs(t.pos.x - b.pos.x) > 120 || Math.abs(t.pos.z - b.pos.z) > 120) continue;
         if (segPointDist(_v1, b.pos, t.pos) < Math.max(17, (t.radius || 0) * .85)) { damage(t, ST.gunDmg, false, null, 'gun'); hitSpark(b.pos); dead = true; break; } }
       if (!dead && !b.fake) for (const g of grounds) { if (!g.alive || g.friend) continue; const gr = Math.max(22, (g.radius || 0) * .8); if (Math.abs(g.pos.x - b.pos.x) > 120 + gr || Math.abs(g.pos.z - b.pos.z) > 120 + gr) continue;
-        if (segPointDist(_v1, b.pos, g.pos) < gr) { damage(g, 5, false, null, 'gun'); hitSpark(b.pos); dead = true; break; } }
+        if (segPointDist(_v1, b.pos, g.pos) < gr) { damage(g, Math.max(5, ST.gunDmg * .6), false, null, 'gun'); hitSpark(b.pos); dead = true; break; } }
       if (!dead && b.pos.y < floorAt(b.pos.x, b.pos.z)) { const w = b.pos.y < 1 && groundAt(b.pos.x, b.pos.z) < 0; if (Math.random() < .6) smoke.emit(b.pos.x, Math.max(b.pos.y, 0), b.pos.z, 0, w ? 22 : 7, 0, .9, 2, 9, w ? .95 : .55, w ? .97 : .5, w ? 1 : .42, .8, .8, .8, .7, 1); dead = true; }
       if (dead) b.life = 0;
     }
@@ -2623,8 +2707,8 @@ function updatePlayer(dt) {
     const pm = ud.pylons[i]; if (pm.visible && pm.scale.x < 1) pm.scale.setScalar(Math.min(1, pm.scale.x + dt * 4)); }
   P.flareCd = Math.max(0, P.flareCd - dt);
   gunFiring = inp.gun && P.gun > 0;
-  ud.muzzle.visible = gunFiring && Math.random() < .7; if (ud.muzzle.visible) ud.muzzle.scale.setScalar(rand(1.6, 3));
-  if (gunFiring) { gunTimer -= dt; while (gunTimer <= 0) { fireBullet(); gunTimer += 1 / ST.gunRate; } shake = Math.max(shake, .14); } else gunTimer = 0;
+  ud.muzzle.visible = gunFiring && Math.random() < .7; if (ud.muzzle.visible) ud.muzzle.scale.setScalar(rand(1.6, 3)); if (ud.muzzle2) { ud.muzzle2.visible = gunFiring && Math.random() < .7; if (ud.muzzle2.visible) ud.muzzle2.scale.setScalar(rand(1.6, 3)); }
+  if (gunFiring) { gunTimer -= dt; while (gunTimer <= 0) { for (let k = 0; k < (ST.gunN || 1); k++) fireBullet(k); gunTimer += 1 / ST.gunRate; } shake = Math.max(shake, .14); } else gunTimer = 0;
   // vapor: wingtips and wing-root vortices under G
   { const vort = Math.max(highG ? 1 : clamp((P.g - 3.8) / 3, 0, 1), P.agl < 80 && P.speed > 250 ? .5 : 0); if (highG) shake = Math.max(shake, .22);
     const tips = P.mesh.userData.tips; for (let i = 0; i < 2; i++) { _v1.copy(tips[i]).multiply(P.mesh.scale).applyQuaternion(P.quat).add(P.pos); trails.tips[i].push(_v1, vort); }
@@ -2713,7 +2797,7 @@ function updateCamera(dt, inp) {
     camUp.lerp(P.up, 1 - Math.exp(-dt * 6)).normalize(); camera.up.copy(camUp);
     camera.lookAt(_v2.copy(P.pos).addScaledVector(P.velDir, 70).addScaledVector(P.fwd, 20).addScaledVector(P.up, 3));
   }
-  if (state !== 'title') camFov = CK.active ? 74 + smooth(.75, 1, P.throttle) * 3 : 60 + clamp((P.speed - 180) / 260, 0, 1) * 9 + smooth(.75, 1, P.throttle) * 5;
+  if (state !== 'title') camFov = CK.active ? 80 + smooth(.75, 1, P.throttle) * 3 : 60 + clamp((P.speed - 180) / 260, 0, 1) * 9 + smooth(.75, 1, P.throttle) * 5;
   if (Math.abs(camera.fov - camFov) > .01) { camera.fov += (camFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   const cg = floorAt(camera.position.x, camera.position.z) + 3; if (camera.position.y < cg) camera.position.y = cg;
   shakeOff.set(0, 0, 0);
@@ -2745,18 +2829,18 @@ function buildCockpit() {
   const RT = new THREE.Group(); RT.position.set(0, -.055, -.03); S.add(RT); // whole pit sits a touch lower: more sky over the coaming
   const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0, parent = RT) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); parent.add(o); return o; };
   // coaming / glareshield and the HUD unit
-  add(new THREE.BoxGeometry(1.05, .06, .34), coamM, 0, -.2, -.82, .1);
-  add(new THREE.CylinderGeometry(.03, .03, 1.02, 10), coamM, 0, -.17, -.66, 0, 0, Math.PI / 2);
-  add(new THREE.BoxGeometry(.22, .09, .24), coamM, 0, -.25, -.69);
+  add(new THREE.BoxGeometry(1.05, .05, .3), coamM, 0, -.27, -.82, .1);
+  add(new THREE.CylinderGeometry(.022, .022, 1.02, 10), coamM, 0, -.235, -.68, 0, 0, Math.PI / 2);
+  add(new THREE.BoxGeometry(.16, .05, .16), coamM, 0, -.3, -.7);
   // HUD combiner: two glass plates in a thin frame, tilted toward the pilot
   const cg = new THREE.Group(); cg.position.set(0, -.07, -.6); cg.rotation.x = -.22; RT.add(cg);
   const glassM = new THREE.MeshBasicMaterial({ color: new THREE.Color(.5, 1, .7), transparent: true, opacity: .06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   add(new THREE.PlaneGeometry(.21, .16), glassM, 0, 0, 0, 0, 0, 0, cg); add(new THREE.PlaneGeometry(.21, .16), glassM, 0, 0, -.02, 0, 0, 0, cg);
-  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(.008, .17, .02), metalM, sx * .108, 0, -.01, 0, 0, 0, cg);
-  add(new THREE.BoxGeometry(.22, .008, .02), metalM, 0, .083, -.01, 0, 0, 0, cg);
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(.004, .17, .01), metalM, sx * .108, 0, -.01, 0, 0, 0, cg);
+  add(new THREE.BoxGeometry(.22, .004, .01), metalM, 0, .083, -.01, 0, 0, 0, cg);
   CK.comb = [new V3(-.105, -.15, -.58), new V3(.105, .01, -.618)];
   // main instrument panel, tilted toward the eye, with three colour MFDs
-  const pg = new THREE.Group(); pg.position.set(0, -.44, -.8); pg.rotation.x = -.32; RT.add(pg);
+  const pg = new THREE.Group(); pg.position.set(0, -.49, -.8); pg.rotation.x = -.38; RT.add(pg);
   // panel face: seams, screws, engraved labels and small round gauges painted on, so the flat panel reads as a real one
   const faceT = canvasTex(1024, 360, (g, w, h) => { g.fillStyle = '#2c3036'; g.fillRect(0, 0, w, h);
     g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 2; for (const x of [40, 330, 694, 984]) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); } g.beginPath(); g.moveTo(0, 330); g.lineTo(w, 330); g.stroke();
@@ -2816,8 +2900,14 @@ function buildCockpit() {
   // canopy bow (windscreen frame) and rear-view mirrors
   for (const sx of [-1, 1]) {
     const curve = new THREE.CatmullRomCurve3([new V3(sx * .6, -.22, -.8), new V3(sx * .54, .08, -.7), new V3(sx * .32, .34, -.48), new V3(0, .41, -.3)]);
-    add(new THREE.TubeGeometry(curve, 32, .014, 8, false), coamM, 0, 0, 0);
+    add(new THREE.TubeGeometry(curve, 32, .01, 8, false), coamM, 0, 0, 0);
     add(new THREE.BoxGeometry(.13, .045, .012), mirrorM, sx * .22, .355, -.43, .6, sx * -.25, 0);
+  }
+  { // transverse canopy arch overhead and side rails running aft, so the frame reads as one bubble
+    const arch = new THREE.CatmullRomCurve3([new V3(-.62, -.15, -.05), new V3(-.5, .3, -.1), new V3(0, .52, -.12), new V3(.5, .3, -.1), new V3(.62, -.15, -.05)]);
+    add(new THREE.TubeGeometry(arch, 36, .012, 8, false), coamM, 0, 0, 0);
+    for (const sx of [-1, 1]) { const rail = new THREE.CatmullRomCurve3([new V3(sx * .6, -.2, -.78), new V3(sx * .64, -.1, -.4), new V3(sx * .63, -.12, .1), new V3(sx * .6, -.15, .6)]); add(new THREE.TubeGeometry(rail, 24, .011, 6, false), coamM, 0, 0, 0); }
+    const seatTop = add(new THREE.BoxGeometry(.3, .2, .08), darkM, 0, .02, .28); add(new THREE.BoxGeometry(.2, .1, .06), yellowM, 0, .17, .26); // ejection-seat headbox seen in the mirrors
   }
   // canopy glass: faint reflective shell
   const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xa8bccb, transparent: true, opacity: .05, metalness: 1, roughness: .04, depthWrite: false, side: THREE.BackSide }));
@@ -2834,7 +2924,7 @@ function buildCockpit() {
   // canopy jettison handle (yellow/black) on the left bow, ejection handle loop between the knees
   const stripeT = canvasTex(64, 256, (g, w, h) => { g.fillStyle = '#e0b42a'; g.fillRect(0, 0, w, h); g.fillStyle = '#111'; for (let y = -64; y < h; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + 32); g.lineTo(w, y + 48); g.lineTo(0, y + 16); g.fill(); } });
   stripeT.wrapS = stripeT.wrapT = THREE.RepeatWrapping; const stripeM = new THREE.MeshStandardMaterial({ map: stripeT, roughness: .6 });
-  add(new THREE.BoxGeometry(.035, .26, .03), stripeM, -.47, -.18, -.64, -.25, 0, .18);
+  add(new THREE.BoxGeometry(.02, .15, .02), stripeM, -.5, -.3, -.66, -.25, 0, .18);
   const ej = add(new THREE.TorusGeometry(.07, .011, 8, 24, Math.PI), stripeM, 0, -.66, -.2, -.6, 0, 0);
   // twin throttle levers in a slotted quadrant
   add(new THREE.BoxGeometry(.08, .05, .3), darkM, -.37, -.53, -.28);
@@ -2966,9 +3056,8 @@ function drawHUD() {
   if (cockpit) { // visor: faint tint toward the rim, curved reflection, and a thin HMD frame cue
     const vg = c.createRadialGradient(cx, cy * .92, Math.min(W, H) * .38, cx, cy, Math.max(W, H) * .78); vg.addColorStop(0, 'rgba(110,190,255,0)'); vg.addColorStop(1, 'rgba(40,90,130,.22)');
     c.fillStyle = vg; c.fillRect(0, 0, W, H);
-    c.strokeStyle = 'rgba(210,235,255,.06)'; c.lineWidth = 50 * s0; c.beginPath(); c.ellipse(cx, cy + H * .15, W * .66, H * .82, 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
-    c.strokeStyle = 'rgba(141,255,180,.22)'; c.lineWidth = 1; c.beginPath(); c.ellipse(cx, cy, W * .47, H * .47, 0, 0, Math.PI * 2); c.stroke();
-    c.font = `${11 * s0}px ${MONO}`; c.fillStyle = 'rgba(141,255,180,.6)'; c.textAlign = 'center'; c.fillText('HMD  ·  JHMCS', cx, cy - H * .47 + 14 * s0); }
+    const gx = clamp((P.g - 5.5) / 3.5, 0, 1); // G-LOC: the view tunnels toward black (and reddens on negative G)
+    if (gx > 0 || P.g < -1.5) { const gg = c.createRadialGradient(cx, cy, Math.min(W, H) * (.55 - gx * .38), cx, cy, Math.max(W, H) * .75); const neg = P.g < -1.5; gg.addColorStop(0, neg ? 'rgba(120,0,0,0)' : 'rgba(0,0,0,0)'); gg.addColorStop(1, neg ? 'rgba(120,0,0,.7)' : `rgba(0,0,0,${.35 + gx * .6})`); c.fillStyle = gg; c.fillRect(0, 0, W, H); } }
   if (RC) { c.save(); c.beginPath(); c.rect(RC.x - 4, RC.y - 4, RC.w + 8, RC.h + 8); c.clip(); }
 
   let fpmX = cx, fpmY = cy;
@@ -3180,11 +3269,11 @@ function drawHUD() {
   }
 
   // radar (in the cockpit view it lives on the left MFD)
-  { const rr = 92 * s; drawRadar(c, isTouch ? W - pad - rr - 10 * s : pad + rr + 10 * s, isTouch ? pad + rr + 60 * s : H - pad - rr - 10 * s, rr, s, blink); }
+  if (!cockpit) { const rr = 92 * s; drawRadar(c, isTouch ? W - pad - rr - 10 * s : pad + rr + 10 * s, isTouch ? pad + rr + 60 * s : H - pad - rr - 10 * s, rr, s, blink); }
 
   // weapons & damage panel
   {
-  const wx = W - pad, wy = H - pad - (isTouch ? 170 * s + 60 : 0);
+  const wx = W - pad, wy = H - pad - (isTouch ? 170 * s + 60 : 0) - (cockpit ? H * .3 : 0);
   c.textAlign = 'right'; c.textBaseline = 'bottom'; font(15);
   const lines = [[`SCORE ${String(score).padStart(6, '0')}`, HUDC], [`FLR ${P.flares}`, HUDC], [`GUN ${P.gun}`, P.gun ? HUDC : WARN],
     ['[G] ' + ST.sp.n + ' ' + (ST.sp.kind === 'laser' ? Math.ceil(P.sp) + 's' : P.sp) + (P.spCd > 0 ? ' ·' : ''), P.sp > 0 ? (laser.on ? WARN : AMBER) : WARN], [`[F] MSL ${P.msl}`, P.msl ? HUDC : WARN],
@@ -3193,13 +3282,13 @@ function drawHUD() {
   // pylon status (4 stations)
   const py0 = wy - 6 * 21 * s - 10 * s;
   const stX = [-3, 3, -1.4, 1.4];
-  for (let i = 0; i < 4; i++) { const ready = P.pylon[i] <= 0 && P.msl > 0, bx = wx - 52 * s + stX[i] * 13 * s, by = py0 - 18 * s;
+  if (!cockpit) for (let i = 0; i < 4; i++) { const ready = P.pylon[i] <= 0 && P.msl > 0, bx = wx - 52 * s + stX[i] * 13 * s, by = py0 - 18 * s;
     c.strokeStyle = HUDC; c.fillStyle = ready ? HUDC : 'rgba(141,255,180,.25)'; c.strokeRect(bx - 3 * s, by, 6 * s, 16 * s);
     if (ready) c.fillRect(bx - 3 * s + 1, by + 1, 6 * s - 2, 16 * s - 2); else { const f = 1 - P.pylon[i] / PYLON_RELOAD; c.fillStyle = HUDC; c.fillRect(bx - 3 * s + 1, by + 16 * s - 1 - (16 * s - 2) * f, 6 * s - 2, (16 * s - 2) * f); } }
   // damage silhouette
   const dmg = (1 - P.hp / P.maxHp) * 100, dcol = dmg < 34 ? HUDC : dmg < 67 ? AMBER : WARN;
-  drawPlaneIcon(c, wx - 130 * s, py0 - 10 * s, 1.5 * s, dcol);
-  c.fillStyle = dcol; font(13); c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText(`DMG ${Math.round(dmg)}%`, wx - 130 * s, py0 + 18 * s);
+  if (!cockpit) { drawPlaneIcon(c, wx - 130 * s, py0 - 10 * s, 1.5 * s, dcol);
+  c.fillStyle = dcol; font(13); c.textAlign = 'center'; c.textBaseline = 'top'; c.fillText(`DMG ${Math.round(dmg)}%`, wx - 130 * s, py0 + 18 * s); }
   c.fillStyle = HUDC;
   }
 
@@ -5119,7 +5208,7 @@ function startBrief(i) {
   else { const cv = R.mesh; cv.updateMatrixWorld(); BRF.carrier = cv; BRF.p0 = cv.localToWorld(cv.userData.cat.clone()).add(_v1.set(0, gh, 0)); BRF.len = 120; BRF.deckEnd = 110; }
   P.pos.copy(BRF.p0); P.quat.setFromUnitVectors(NEG_Z, R.dir); P.speed = 0; P.throttle = .3; ud.gearSet(1); BRF.gear = 1;
   Object.assign(BRF, { t: 0, li: -1, lt: 0, ending: false, dist: 0, v: 0, pitch: 0, alt: 0, ph: 'spool', phT: 0, fix: null, camInit: false });
-  BRF.lines = BRIEF_LINES[M.key || M.id] || [['HQ', M.story]]; BRF.var = Math.max(0, CMISSIONS.indexOf(M)) % 4; BRF.sFlag = {}; BRF.offDone = true; BRF.sp = null; BRF.fp = null;
+  BRF.lines = BRIEF_LINES[M.key || M.id] || [['HQ', M.story]]; BRF.var = 0; BRF.sFlag = {}; BRF.offDone = true; BRF.sp = null; BRF.fp = null;
   BRF.dur = Math.max(18, BRF.lines.reduce((a, l) => a + 1.4 + l[1].length * .085, 2.5));
   BRF.rollStart = Math.max(4.5, BRF.dur - 13.5);
   const el = briefDom(); el.hidden = false; $('#brF').style.opacity = 1; requestAnimationFrame(() => { $('#brF').style.opacity = 0; });
@@ -5319,7 +5408,7 @@ function showResult() {
   if (ACH.session.length) { $('#stats').innerHTML += ACH.session.map(a => `<dt>🏆 実績解放</dt><dd>${a.n}（${a.rw}）</dd>`).join(''); }
   const nb = $('#nextBtn'); if (nb) nb.hidden = !(CAMP.m && win && CAMP.idx < CMISSIONS.length - 1);
   $('#result').hidden = false; (nb && !nb.hidden ? nb : $('#retryBtn')).focus();
-  if (SND.ctx) ['engG', 'roarG', 'windG', 'lockG', 'alertG', 'warnG', 'gunG'].forEach(k => SND[k].gain.value = 0);
+  if (SND.ctx) ['engG', 'roarG', 'windG', 'lockG', 'alertG', 'warnG', 'gunG', 'radioG'].forEach(k => SND[k].gain.value = 0);
 }
 /* ================= lobby mail: achievement message → unlock notice (AC6 style) ================= */
 const ACH_MSG = {
@@ -5332,10 +5421,11 @@ const ACH_MSG = {
   rail10: ['WREN', 'レールガンで一直線に撃ち抜いたの、ちゃんと見てたよ！ 威力を引き上げた改良型が届いたから、もっと派手にやっちゃって！'],
   bossClean: ['NIGHTJAR', 'ボスを被弾なしで撃破…？ 信じられん。お前の腕に見合う、エネルギー効率を高めた新型レーザーを渡そう。'],
   mpwin10: ['WREN', '対戦10勝、おめでとう！ 勝者だけが着られる塗装を用意しといたよ。次の相手を、思いきり震え上がらせてきて！'],
+  allclear: ['NIGHTJAR', '本編も追加章も、すべての戦線を制覇したな。…司令部から最後の贈り物だ。伝説の対地攻撃機、「雷の翼」を回す。鈍足だが何があっても落ちない。鉄の雨で、地上の敵をなぎ払ってくれ。'],
   extraAll: ['GRIFFON', '追加章まで全部踏破したか。…もう俺から言うことはない。幽霊みたいに消えて、背後に立つ。そんなお前にぴったりの色を持っていけ。']
 };
-const achKind = rw => /^塗装/.test(rw) ? '塗装' : /^追加装甲/.test(rw) ? '装備' : /^EXTRA/.test(rw) ? '追加章' : '武装';
-const achItem = rw => rw.replace(/^(機銃|塗装)\s*/, '').replace(/が開放$/, '');
+const achKind = rw => /^新機体/.test(rw) ? '機体' : /^塗装/.test(rw) ? '塗装' : /^追加装甲/.test(rw) ? '装備' : /^EXTRA/.test(rw) ? '追加章' : '武装';
+const achItem = rw => rw.replace(/^(機銃|塗装|新機体)\s*/, '').replace(/が開放$/, '');
 const MAIL = { el: null, q: [], st: 'idle', typed: 0, text: '', timer: 0, busy: false };
 function mailBuild() {
   if (MAIL.el) return; const st = document.createElement('style');
@@ -5488,7 +5578,7 @@ player.pos.set(0, 3000, 14500);
 resize();
 updateLoadoutSummary(); menuFocus(); setTimeout(showAchMail, 1500);
 // test hook, local dev server only
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { showAchMail, sfxRadio, startBrief, enemyMesh, makeLandshipMesh, makeFactoryMesh, makeAirbase, get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { rebuildPlayerMesh, makeJet, WG, setCam: v => { camView = v; }, showAchMail, sfxRadio, startBrief, enemyMesh, makeLandshipMesh, makeFactoryMesh, makeAirbase, get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
 requestAnimationFrame(frame);
 })();
 </script>
