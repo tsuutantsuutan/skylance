@@ -1815,7 +1815,7 @@ const campSave_init = () => { try { return (JSON.parse(localStorage.getItem('sky
 try { const a = JSON.parse(localStorage.getItem('skylance-ach') || '{}'); if (a.u) ACH.u = a.u; if (a.c) ACH.c = a.c; if (Array.isArray(a.p)) ACH.pend = a.p; } catch (e) {}
 const achSave = () => { try { localStorage.setItem('skylance-ach', JSON.stringify({ u: ACH.u, c: ACH.c, p: ACH.pend })); } catch (e) {} };
 const ACH_DEF = [
-  { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全6話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
+  { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全9話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
   { id: 'nohit', n: '無傷の槍', d: '1回も被弾せずにミッションをクリア', rw: '追加装甲 III' },
   { id: 'allS', n: '全話S評価', d: 'キャンペーン全10話でS評価を取る', rw: '塗装 GOLDEN LANCE', pr: () => [Object.values(campSave.get().ranks || {}).filter(r => r === 'S').length, 10] },
   { id: 'lowalt', n: '地を這う鷹', d: '低空（高度150m以下）の飛行が累計10分', rw: '機銃 GAU-8 ROTARY', cnt: 'low', need: 600, fmt: v => Math.floor(v / 60) + ' / 10分' },
@@ -1824,10 +1824,10 @@ const ACH_DEF = [
   { id: 'rail10', n: '一閃', d: 'レールガンの貫通で累計10体撃破（先頭の目標以外）', rw: 'EML-II', cnt: 'railKill', need: 10 },
   { id: 'bossClean', n: 'ノーダメージ撃破', d: '被弾せずにボスを撃破', rw: 'TLS-X' },
   { id: 'mpwin10', n: '対戦の覇者', d: 'マルチ対戦で累計10勝', rw: '塗装 VERSUS', cnt: 'mpWin', need: 10 },
-  { id: 'allclear', n: '全戦線制覇', d: '本編10話と追加章6話をすべてクリア', rw: '新機体 THUNDERBOLT（A-10C）', pr: () => [Math.min(10, campCleared()) + Object.keys(campSave.get().x || {}).length, 16] },
-  { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全6話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 6] }];
+  { id: 'allclear', n: '全戦線制覇', d: '本編10話と追加章9話をすべてクリア', rw: '新機体 THUNDERBOLT（A-10C）', pr: () => [Math.min(10, campCleared()) + Object.keys(campSave.get().x || {}).length, 19] },
+  { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全9話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 9] }];
 if (campSave_init()) ACH.u.camp10 = ACH.u.camp10 || Date.now();
-try { const cs = JSON.parse(localStorage.getItem('skylance-camp') || '{}'); if ((cs.cleared || 0) >= 10 && Object.keys(cs.x || {}).length >= 6) { if (!ACH.u.extraAll) ACH.u.extraAll = Date.now(); if (!ACH.u.allclear) { ACH.u.allclear = Date.now(); ACH.pend.push('allclear'); } } } catch (e) {}
+try { const cs = JSON.parse(localStorage.getItem('skylance-camp') || '{}'); if ((cs.cleared || 0) >= 10 && Object.keys(cs.x || {}).length >= 9) { if (!ACH.u.extraAll) ACH.u.extraAll = Date.now(); if (!ACH.u.allclear) { ACH.u.allclear = Date.now(); ACH.pend.push('allclear'); } } } catch (e) {}
 const achHas = id => !!ACH.u[id];
 const partLocked = pt => !!(pt && pt.ach && !ACH.u[pt.ach]);
 const achOn = () => !opts.beginner && mode !== 'tutorial' && mode !== 'multi';
@@ -2221,6 +2221,7 @@ function weaponParams(t) {
 }
 function fireSpecial() {
   const P = player, sp = ST.sp;
+  if ((P.empT || 0) > 0) { showMsg('SYSTEM DOWN', WARN, .8); return; }
   if (sp.kind === 'laser') return; // held trigger, handled every frame
   if (P.sp <= 0) { showMsg('NO SP AMMO', WARN); return; }
   if (P.spCd > 0) return;
@@ -2292,8 +2293,11 @@ function updateBeams(dt, inp) {
   laser.tick -= dt;
   if (laser.tick <= 0) { laser.tick = .12; if (t) { damage(t, (sp.dps || 160) * .12, false, sp.vd * .12, 'laser'); hitMarkT = .08; } if (SND.ctx && !SND.muted) sfxTone(880, 860, .12, .03, 'sawtooth'); }
 }
+let empEl = null;
+function empFx(on) { try { if (!empEl) { empEl = document.createElement('div'); empEl.style.cssText = 'position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;mix-blend-mode:screen;background:repeating-linear-gradient(0deg,rgba(120,200,255,.22) 0 2px,rgba(0,0,0,0) 2px 5px),radial-gradient(circle,rgba(0,0,0,0) 40%,rgba(80,160,255,.35) 100%);transition:opacity .15s'; document.body.appendChild(empEl); } empEl.style.opacity = on ? (.55 + Math.random() * .4) : 0; } catch (e) {} }
 function playerFireMissile() {
   if (player.frozen) return;
+  if ((player.empT || 0) > 0) { showMsg('SYSTEM DOWN', WARN, .8); return; }
   if (player.msl <= 0) { showMsg('NO MISSILES', WARN); return; }
   let i = -1; for (let k = 0; k < 4; k++) { const c = (player.nextPylon + k) % 4; if (player.pylon[c] <= 0) { i = c; break; } }
   if (i < 0) return;
@@ -2636,11 +2640,12 @@ function updateTargeting(dt) {
   if (curTarget && player.alive) {
     _v1.subVectors(curTarget.pos, player.pos); const d = _v1.length(), a = player.fwd.angleTo(_v1);
     const wp = weaponParams(curTarget);
-    if (d < wp.range && a < wp.cone) lockT = Math.min(lockT + dt * ((player.ecmT || 0) > 0 ? 3 : 1), wp.lock); else lockT = Math.max(0, lockT - dt * 2);
+    if (d < wp.range && a < wp.cone) lockT = (player.empT || 0) > 0 ? 0 : Math.min(lockT + dt * ((player.ecmT || 0) > 0 ? 3 : 1), wp.lock); else lockT = Math.max(0, lockT - dt * 2);
     locked = lockT >= wp.lock; player.lockNeed = wp.lock;
   }
   const P = player;
   P.spCd = Math.max(0, (P.spCd || 0) - dt);
+  if ((P.empT || 0) > 0) { P.empT -= dt; empFx(true); if (P.empT <= 0) { P.empT = 0; empFx(false); showMsg('SYSTEM RECOVERED', HUDC, 1.5); } }
   if ((P.ecmT || 0) > 0 && P.alive) { P.ecmT -= dt; if ((ecmFx -= dt) <= 0) { ecmFx = .55; shockwave(P.pos, 55, .7, new THREE.Color(.4, 1.3, 2.4)); } if (P.ecmT <= 0) { P.ecmT = 0; showMsg('ECM OFF', HUDD, 1.2); } } else P.ecmT = 0;
   if (ST.sp.multi && P.alive) {
     P.mlocks = P.mlocks.filter(t => t.alive && t.pos.distanceTo(P.pos) < ST.sp.range * 1.1 && P.fwd.angleTo(_v1.subVectors(t.pos, P.pos)) < ST.sp.cone * 1.4);
@@ -4989,13 +4994,64 @@ const XMISSIONS = [
         if (F.t <= 0) { F.st = 'idle'; F.t = Math.max(5, 11 - ph * 1.1); F.shots++; F.bw.visible = F.bf.visible = F.bg.visible = false; } }
     },
     win: [['NIGHTJAR', 'ゼニスの動力が全停止。軌道砲台は沈黙した。…見事だ、ケストレル。'], ['GRIFFON', 'あの空を薙ぎ払う光、二度と見たくないな。']] },
+  { id: 17, tag: 'E7', extra: true, title: '無人機カーニバル', en: 'Drone Carnival', map: 'coast', time: 600, supply: true,
+    story: 'ヴァルカの無人機が、使い捨ての群れで押し寄せてきた。1機1機は脆いが、数が尋常じゃない。多重ロックできる兵装（4AAMなど）で、まとめて刈り取れ。補給は基地や空母の上を低空で通れば受けられる。',
+    facts: [['目的', '3波の無人機を全機撃墜'], ['敗北', '撃墜される・時間切れ'], ['ヒント', 'ロックしたまま次のロックを待つより、4AAMなどの多重ロックでまとめて撃つと速い'], ['補給', '味方基地の上を低空（200m以下）で通ると補給できる']],
+    start() {
+      player.pos.set(0, 2200, 12500); const F = CAMP.f; F.list = []; F.wave = 0; F.next = 3;
+      F.spawn = n => { F.wave++; for (let i = 0; i < n; i++) { const a = rand(0, 6.283), r = rand(5500, 8000), e = campAir('F', player.pos.x + Math.cos(a) * r, rand(1500, 2800), player.pos.z + Math.sin(a) * r, { hp: 40, label: 'DRONE', score: 250, speed: 250 }); e.state = 'patrol'; F.list.push(e); }
+        radio('NIGHTJAR', `第${F.wave}波、無人機${n}機！ 四方から来るぞ！`, 3.5, true); showMsg(`WAVE ${F.wave}`, AMBER, 2.2, true); };
+      radio('NIGHTJAR', '無人機の群れが接近中。数で押し切る気だ。', 4); radio('WREN', '多重ロックの出番だね！ まとめて落とそう！', 4);
+    },
+    tick() {
+      const F = CAMP.f, alive = F.list.filter(e => e.alive).length;
+      if (F.wave < 3 && (F.wave === 0 ? missionTime > F.next : (alive <= 4 || missionTime > F.next))) { F.spawn(F.wave === 0 ? 14 : F.wave === 1 ? 18 : 22); F.next = missionTime + 70; }
+      CAMP.obj = F.wave < 3 ? `無人機を撃墜せよ  第${Math.max(1, F.wave)}波 / 3  残り ${alive}` : `無人機を全滅させよ  残り ${alive}`; CAMP.status = null;
+      if (F.wave >= 3 && !alive) return campEnd(true);
+    },
+    win: [['NIGHTJAR', '無人機の全滅を確認。…数だけの兵器じゃ、君には届かない。'], ['WREN', 'まとめて撃つの、癖になりそう！']] },
+  { id: 18, tag: 'E8', extra: true, title: '沈黙の電磁パルス', en: 'EMP Swarm', map: 'archi', time: 660, supply: true,
+    story: '敵はEMP（電磁パルス）を積んだ特攻無人機を放ってきた。近づかれると、数秒間ロックオンも兵装も使えなくなる。接近される前に撃ち落とせ。ECM/JAM ポッドを積んでいれば、パルスを無効化できる。',
+    facts: [['目的', 'EMP無人機を全機撃墜'], ['敗北', '撃墜される・時間切れ'], ['注意', 'EMP無人機が近づくと、4秒間ロック・発射が不能になる'], ['ヒント', 'ECM/JAM ポッド発動中はEMPが効かない。機銃は電磁パルスの影響を受けない']],
+    start() {
+      player.pos.set(0, 2200, 12500); const F = CAMP.f; F.list = []; F.wave = 0; F.next = 3;
+      F.spawn = (n, g) => { F.wave++; for (let i = 0; i < n; i++) { const a = rand(0, 6.283), r = rand(5500, 8000), e = campAir('F', player.pos.x + Math.cos(a) * r, rand(1500, 2800), player.pos.z + Math.sin(a) * r, { hp: 35, label: 'EMP', score: 400, speed: 270, emp: true }); e.state = 'patrol'; F.list.push(e); }
+        if (g) squad('F', g, 0, 2400, -14000, 0);
+        radio('NIGHTJAR', `第${F.wave}波、EMP無人機${n}機！ 近づかれる前に落とせ！`, 3.5, true); showMsg(`WAVE ${F.wave}`, AMBER, 2.2, true); };
+      radio('NIGHTJAR', '特攻無人機にEMPが積まれている。接近を許すと、ロックも兵装も止まるぞ。'); radio('GRIFFON', '機銃は電子機器じゃない。最後に頼れるのは、いつも機銃だ。', 4.5);
+    },
+    tick() {
+      const F = CAMP.f, P = player, alive = F.list.filter(e => e.alive).length;
+      if (F.wave < 3 && (F.wave === 0 ? missionTime > F.next : (alive <= 2 || missionTime > F.next))) { F.spawn(F.wave === 0 ? 6 : F.wave === 1 ? 8 : 10, F.wave === 1 ? 3 : 0); F.next = missionTime + 80; }
+      for (const e of F.list) if (e.alive && P.alive && e.pos.distanceTo(P.pos) < 380) {
+        if ((P.ecmT || 0) > 0) { showMsg('EMP JAMMED', HUDC, 1.6, true); sfxTone(1800, 300, .25, .1, 'square'); } else { P.empT = 4; showMsg('EMP HIT', WARN, 2.2, true); sfxNoise(.7, 3200, .4, 'bandpass', 900, .8); sfxTone(900, 60, .8, .2, 'sawtooth'); fx.flash = Math.max(fx.flash, .35); shake = Math.max(shake, .5); radio('NIGHTJAR', pick(['EMP被弾！ 機銃で戦え！', 'システムダウン！ 数秒しのげ！']), 3, true); }
+        explode(e.pos, 1.3, false); damage(e, 9999, false); }
+      CAMP.obj = `EMP無人機を撃墜せよ  第${Math.max(1, F.wave)}波 / 3  残り ${alive}`; CAMP.status = P.empT > 0 ? [`SYSTEM DOWN ${P.empT.toFixed(1)}`, true] : null;
+      if (F.wave >= 3 && !alive) return campEnd(true);
+    },
+    win: [['NIGHTJAR', 'EMP無人機の全滅を確認。…機銃が一番頼れる、か。']] },
+  { id: 19, tag: 'E9', extra: true, title: '最後の一発', en: 'Last Round', map: 'ocean', time: 720, supply: false,
+    story: '補給路を断たれた。載せられるのは、ミサイル10発、機銃450発、フレア10発だけ。補給は一切できない。一発一発を確実に当てて、敵機を撃ち落とせ。弾が尽きたら、体当たりしかない。',
+    facts: [['目的', '敵機18機の撃墜'], ['敗北', '撃墜される・時間切れ'], ['装備', 'ミサイル10・機銃450・フレア10（補給なし）'], ['ヒント', '遠くからミサイルを乱射せず、ロックが完全に入ってから撃つ。近距離は機銃で']],
+    start() {
+      player.pos.set(0, 2200, 12500); player.msl = 10; player.gun = 450; player.flares = 10; const F = CAMP.f; F.list = []; F.wave = 0; F.next = 5;
+      F.spawn = (code, n) => { F.wave++; const l = squad(code, n, rand(-2500, 2500), 2400, -14000, 0); F.list.push(...l); radio('NIGHTJAR', `敵${n}機！ 弾は残り少ない、慎重にな！`, 3.5, true); showMsg(`WAVE ${F.wave}`, AMBER, 2.2, true); };
+      radio('NIGHTJAR', '補給路は断たれた。手持ちの弾だけでやるしかない。…一発も無駄にするな。'); radio('WREN', '落ち着いて、確実に当てよう。ケストレルならできるよ。', 4);
+    },
+    tick() {
+      const F = CAMP.f, alive = F.list.filter(e => e.alive).length;
+      if (F.wave < 3 && (F.wave === 0 ? missionTime > F.next : (alive <= 1 || missionTime > F.next))) { F.spawn(F.wave === 2 ? 'I' : 'F', 6); F.next = missionTime + 100; }
+      CAMP.obj = `敵機を撃墜せよ  残り ${(F.wave < 3 ? (3 - F.wave) * 6 : 0) + alive}/18`; CAMP.status = [`AMMO  MSL ${player.msl}  GUN ${player.gun}`, player.msl <= 0 && player.gun <= 0];
+      if (F.wave >= 3 && !alive) return campEnd(true);
+    },
+    win: [['NIGHTJAR', '全機撃墜。あの少ない弾で…信じられない腕だ。'], ['GRIFFON', '最後の一発まで当てる。それが本物のエースだ。']] },
 ];
 CMISSIONS.push(...XMISSIONS);
 function campEnd(win, reason) {
   if (missionResult) return;
   missionResult = win ? 'win' : 'fail'; endTimer = win ? 8 : 4;
   if (win) { showMsg('MISSION ACCOMPLISHED', HUDC, 7, true); (CAMP.m.win || []).forEach(([w, t]) => radio(w, t, 5)); const sv = campSave.get(); if (CAMP.m.extra) { sv.x = sv.x || {}; sv.x[CAMP.m.id] = 1; } else sv.cleared = Math.max(sv.cleared || 0, CAMP.m.id); campSave.set(sv);
-    if (achOn()) { if (!missionHurt) achUnlock('nohit'); if (!CAMP.m.extra && sv.cleared >= 10) achUnlock('camp10'); if (CAMP.m.extra && Object.keys(sv.x).length >= 6) achUnlock('extraAll'); } }
+    if (achOn()) { if (!missionHurt) achUnlock('nohit'); if (!CAMP.m.extra && sv.cleared >= 10) achUnlock('camp10'); if (CAMP.m.extra && Object.keys(sv.x).length >= 9) achUnlock('extraAll'); } }
   else { player.failReason = reason; showMsg('MISSION FAILED', WARN, 4, true); }
 }
 function campTick(dt) {
@@ -5018,10 +5074,10 @@ function startCampaign(i) {
   setMap(M.map);
   state = 'play'; missionTime = 0; timeLeft = M.time; score = 0; kills = 0; phase = 1; endTimer = 0; missionResult = null; shake = 0; outTimer = 0; missionHurt = false; ACH.session.length = 0;
   timeScale = 1; slowmoT = 0; lastKillT = -99; chain = 0;
-  Object.assign(player, { speed: 260, prevSpeed: 260, throttle: .55, cp: 0, cr: 0, cy: 0, hp: refreshLoadout(), alive: true, msl: 64, gun: 1600, flares: 24, pylon: [0, 0, 0, 0], nextPylon: 0, flareCd: 0, maxG: 1 });
+  Object.assign(player, { speed: 260, prevSpeed: 260, throttle: .55, cp: 0, cr: 0, cy: 0, hp: refreshLoadout(), alive: true, msl: 64, gun: 1600, flares: 24, pylon: [0, 0, 0, 0], nextPylon: 0, flareCd: 0, maxG: 1 , empT: 0, ecmT: 0});
   player.quat.identity(); player.velDir.set(0, 0, -1); player.mesh.visible = true; player.mesh.userData.pylons.forEach(p => p.visible = true);
   curTarget = null; lockT = 0; locked = false; camView = 0; camOffset.set(0, 7, 32); post.first = true;
-  M.start();
+  empFx(false); M.start();
   placeSupplySite(player.pos); SUPPLY.on = !!M.supply; // the site is always there for the takeoff; only some missions let you rearm on it
   player.velDir.set(0, 0, -1).applyQuaternion(player.quat);
   $('#title').hidden = true; $('#camp').hidden = true; $('#result').hidden = true; $('#pause').hidden = true; $('#touch').hidden = !isTouch; $('#tut').hidden = true;
@@ -5276,6 +5332,9 @@ function drawSupplyHud(c, s, blink, font) {
   c.textBaseline = 'top'; c.textAlign = 'left'; c.fillStyle = HUDC; c.strokeStyle = HUDC;
 }
 BRIEF_LINES[16] = [['NIGHTJAR', '山岳地帯の中央に、軌道衛星とリンクした巨大レールガン塔が建っている。コードネームはゼニス。'], ['NIGHTJAR', '定期的に空を薙ぎ払う。直撃されれば、機体は持たない。'], ['GRIFFON', '赤い射線が見えたら、高度を大きく変えろ。山の陰に入れば、光は届かん。'], ['NIGHTJAR', '目標は塔を囲む6基の動力パイプ。全部壊せば、ゼニスは止まる。']];
+BRIEF_LINES[17] = [['NIGHTJAR', 'ヴァルカが無人機を使い捨てで投入してきた。1機は脆いが、数が多い。'], ['WREN', '4AAMみたいな多重ロックの兵装があれば、まとめて落とせるよ。'], ['NIGHTJAR', '3波に分かれて来る。補給は基地の上を低空で通れば受けられる。']];
+BRIEF_LINES[18] = [['NIGHTJAR', '特攻無人機にEMPが積まれている。接近を許せば、数秒間ロックも兵装も止まる。'], ['GRIFFON', 'ECM/JAMポッドを積んでおけ。発動中は、パルスを無効化できる。'], ['NIGHTJAR', '機銃は電子機器に頼らない。いざという時は、機銃で落とせ。']];
+BRIEF_LINES[19] = [['NIGHTJAR', '補給路を断たれた。使える弾は、ミサイル10発と機銃450発だけだ。'], ['WREN', '一発も無駄にできないね。ロックが完全に入るまで我慢しよう。'], ['NIGHTJAR', '補給は一切ない。弾が尽きたら…体当たりしかなくなる。']];
 function startBrief(i) {
   startCampaign(i); const M = CAMP.m, P = player;
   BRF.save = { pos: P.pos.clone(), quat: P.quat.clone(), speed: P.speed };
