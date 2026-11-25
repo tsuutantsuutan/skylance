@@ -1888,7 +1888,7 @@ function rebuildPlayerMesh() {
 let curTarget = null, lockT = 0, locked = false, alertLevel = 0, lockWarn = false, gunTimer = 0, gunFiring = false, radioCooldown = 0, outTimer = 0;
 let timeScale = 1, slowmoT = 0, lastKillT = -99, chain = 0;
 let mode = 'mission'; // 'mission' | 'tutorial' | 'multi'
-const opts = { beginner: false, lockMode: 'auto', guide: false };
+const opts = { hard: false, beginner: false, lockMode: 'auto', guide: false };
 let launchAlertT = 0, retargetT = 0;
 const player = {
   pos: new V3(), vel: new V3(), velDir: new V3(0, 0, -1), quat: new Q4(), fwd: new V3(0, 0, -1), up: new V3(0, 1, 0), right: new V3(1, 0, 0),
@@ -2208,7 +2208,7 @@ function launchMissile(pylonMesh, startPos, dir, speed, target, owner, upVec, dr
   const vel = launchVel ? launchVel.clone() : dir.clone().normalize().multiplyScalar(speed);
   vel.addScaledVector(upVec, -eject);
   const m = { pos, prev: pos.clone(), dir: vel.clone().normalize(), vel, speed: vel.length(), target, owner, mesh, exh, life: owner === 'player' ? 9.5 : 11.5, age: 0,
-    turn: owner === 'player' ? 2.5 : 1.55, maxSpeed: owner === 'player' ? 780 : 640, alive: true, ignite: dropT, lit: dropT <= 0, skip: owner === 'enemy' && !!pylonMesh };
+    turn: owner === 'player' ? 2.5 : 1.55, maxSpeed: owner === 'player' ? 780 : 640 * (opts.hard && mode !== 'multi' ? 1.2 : 1), alive: true, ignite: dropT, lit: dropT <= 0, skip: owner === 'enemy' && !!pylonMesh };
   if (pylonMesh) pylonMesh.getWorldQuaternion(m.mesh.quaternion); else m.mesh.quaternion.setFromUnitVectors(NEG_Z, m.dir);
   if (owner === 'enemy' && target === player && ST.stealth) m.turn *= .72;
   if (owner === 'player' || mode === 'multi') m.nid = ++NET.mid;
@@ -2394,7 +2394,7 @@ function updateMissiles(dt) {
       explode(m.pos, .7); NET.hits.push([m.target.peer, coopMissileDmg(), ++NET.hitSeq, 1]); if (NET.hits.length > 12) NET.hits.shift(); removeMissile(i); continue; }
     const gh = floorAt(m.pos.x, m.pos.z);
     if (hit) {
-      if (hit === player) { explode(m.pos, .7); damagePlayer(mode === 'multi' ? coopMissileDmg() : 34); }
+      if (hit === player) { explode(m.pos, .7); damagePlayer(mode === 'multi' ? coopMissileDmg() : opts.hard ? Math.max(34, player.maxHp * .28 / 1.5) : 34); }
       else { explode(m.pos, .6, false); damage(hit, m.dmg || 100, true, m.vdmg, 'missile'); }
       removeMissile(i); continue;
     }
@@ -2417,7 +2417,7 @@ function achOnKill(t, src) {
 function removeMissile(i) { scene.remove(missiles[i].mesh); missiles.splice(i, 1); }
 const immune = () => mode === 'tutorial' || (opts.beginner && mode === 'mission');
 function damagePlayer(amt) {
-  if (!player.alive) return; missionHurt = true;
+  if (!player.alive) return; if (opts.hard && mode !== 'multi') amt *= 1.5; missionHurt = true;
   if (mode === 'tutorial') tut.hit = true;
   if (!immune()) player.hp -= amt; shake = Math.max(shake, 1.5); fx.red = 1; fx.flash = Math.max(fx.flash, .15);
   showMsg('DAMAGED', WARN, 1.6);
@@ -2545,7 +2545,7 @@ function updateEnemy(e, dt) {
   e.stateT -= dt; e.missileCd -= dt;
   for (let k = 0; k < 4; k++) if (e.pyl[k] > 0) { e.pyl[k] -= dt; if (e.pyl[k] <= 0) e.mesh.userData.pylons[k].visible = true; }
   let threat = null;
-  for (const m of missiles) if (m.owner === 'player' && m.target === e && m.pos.distanceTo(e.pos) < 1400) { threat = m; break; }
+  for (const m of missiles) if (m.owner === 'player' && m.target === e && m.pos.distanceTo(e.pos) < (opts.hard && mode !== 'multi' ? 2600 : 1400)) { threat = m; break; }
   e.flareCd = (e.flareCd || 0) - dt;
   if (threat && !e.drone && !e.noEvade) {
     aiFlares(e, threat);
@@ -2553,7 +2553,7 @@ function updateEnemy(e, dt) {
       e.evadeDir.crossVectors(threat.dir, UP).normalize().multiplyScalar(Math.random() < .5 ? -1 : 1).addScaledVector(UP, rand(-.5, .6)).normalize();
       e.state = 'evade'; e.stateT = rand(1.2, 2);
     }
-    desired.copy(e.evadeDir); targetSpeed = 320 * (e.spdMul || 1);
+    desired.copy(e.evadeDir); targetSpeed = 320 * (e.spdMul || 1) * (opts.hard ? 1.1 : 1);
   } else if (!e.drone && T.alive && (dist < 10000 || e.state === 'attack' || e.wave === 2)) {
     if (e.state === 'extend' && e.stateT > 0) { desired.copy(e.evadeDir); targetSpeed = 310 * (e.spdMul || 1); }
     else {
@@ -3283,7 +3283,7 @@ function drawHUD() {
   if (mode === 'mission') drawSupplyHud(c, s, blink, font);
   if (mode === 'mission' && CAMP.m) drawCampHud(c, s, pad, blink, font);
   else if (mode === 'mission') {
-    c.fillText(`PHASE ${phase}  ·  KILLS ${kills}` + (opts.beginner ? '  ·  BEGINNER' : ''), pad, pad); font(12, JP);
+    c.fillText(`PHASE ${phase}  ·  KILLS ${kills}` + (opts.beginner ? '  ·  BEGINNER' : opts.hard ? '  ·  HARD' : ''), pad, pad); font(12, JP);
     c.fillText(phase === 1 ? '敵戦闘機と地上施設を全て撃破せよ' : '敵増援部隊を撃墜せよ', pad, pad + 18 * s);
     font(12); const at = aliveTargets(); c.fillText(`TGT ${at.length}`, pad, pad + 38 * s);
     c.fillStyle = timeLeft < 60 && blink ? WARN : HUDC; font(22); c.fillText(fmtTime(timeLeft), pad, pad + 56 * s); c.fillStyle = HUDC;
@@ -4422,7 +4422,7 @@ function tracerSetup() { if (TRC.mesh) return; const g = new THREE.BufferGeometr
   g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(TRC.max * 6), 3).setUsage(THREE.DynamicDrawUsage));
   TRC.mesh = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })); TRC.mesh.frustumCulled = false; scene.add(TRC.mesh); }
 function tracer(from, dir, speed, hostile, col) { tracerSetup(); if (TRC.list.length >= TRC.max) TRC.list.shift(); TRC.list.push({ p: from.clone(), prev: from.clone(), v: dir.clone().multiplyScalar(speed), life: 2.2, hostile, col }); }
-function chipPlayer(amt, why) { if (!player.alive || immune()) return; if (amt > 0) missionHurt = true; player.hp -= amt; fx.red = Math.max(fx.red, .45); shake = Math.max(shake, .35);
+function chipPlayer(amt, why) { if (!player.alive || immune()) return; if (opts.hard && mode !== 'multi') amt *= 1.5; if (amt > 0) missionHurt = true; player.hp -= amt; fx.red = Math.max(fx.red, .45); shake = Math.max(shake, .35);
   if (Math.random() < .25) showMsg('AAA HIT', WARN, .8); if (player.hp <= 0) { player.hp = 0; killPlayer(why); } }
 function tracerStep(dt) {
   if (!TRC.mesh) return; const pa = TRC.mesh.geometry.attributes.position.array, ca = TRC.mesh.geometry.attributes.color.array; let n = 0;
@@ -5459,7 +5459,7 @@ addEventListener('keydown', e => { if (state === 'brief' && (e.code === 'Enter' 
 // HUD block for campaign missions (top-left) + friendly markers
 function drawCampHud(c, s, pad, blink, font) {
   const M = CAMP.m;
-  c.fillText(`${M.extra ? 'EXTRA' : 'MISSION'} ${mtag(M)}  ·  KILLS ${kills}` + (opts.beginner ? '  ·  BEGINNER' : ''), pad, pad); font(12, JP);
+  c.fillText(`${M.extra ? 'EXTRA' : 'MISSION'} ${mtag(M)}  ·  KILLS ${kills}` + (opts.beginner ? '  ·  BEGINNER' : opts.hard ? '  ·  HARD' : ''), pad, pad); font(12, JP);
   c.fillText(CAMP.obj, pad, pad + 18 * s); font(12);
   if (CAMP.status) { c.fillStyle = CAMP.status[1] && blink ? WARN : CAMP.status[1] ? AMBER : HUDC; c.fillText(CAMP.status[0], pad, pad + 38 * s); c.fillStyle = HUDC; }
   c.fillStyle = timeLeft < 60 && blink ? WARN : HUDC; font(22); c.fillText(fmtTime(timeLeft), pad, pad + 56 * s); c.fillStyle = HUDC;
@@ -5650,7 +5650,7 @@ function toTitle() {
   if (SND.ctx) { SND.ctx.resume(); ['engG', 'roarG', 'windG', 'lockG', 'alertG', 'warnG', 'gunG'].forEach(k => SND[k].gain.value = 0); }
   setTimeout(showAchMail, 1100);
 }
-function readOpts() { invert = $('#optInvert').checked; blurOn = $('#optBlur').checked; opts.beginner = $('#optBeginner').checked; opts.lockMode = $('#optLock').value; opts.guide = $('#optGuide').checked; $('#fpsMeter').hidden = !$('#optFps').checked; applyQuality($('#optQuality').value); }
+function readOpts() { invert = $('#optInvert').checked; blurOn = $('#optBlur').checked; opts.beginner = $('#optBeginner').checked; opts.hard = $('#optHard').checked && !opts.beginner; opts.lockMode = $('#optLock').value; opts.guide = $('#optGuide').checked; $('#fpsMeter').hidden = !$('#optFps').checked; applyQuality($('#optQuality').value); }
 // ---- main menu: hover/focus shows the matching detail sheet; arrow keys move between items
 const menuItems = [...document.querySelectorAll('#title .mi')];
 function menuShow(id) {
@@ -5709,7 +5709,7 @@ $('#quitBtn').addEventListener('click', () => { if (SND.ctx) SND.ctx.resume(); t
 $('#retryBtn').addEventListener('click', () => { if (CAMP.m) startCampaign(CAMP.idx); else startMission(); });
 $('#nextBtn').addEventListener('click', () => startBrief(CAMP.idx + 1));
 $('#menuBtn').addEventListener('click', toTitle);
-try { const s = JSON.parse(localStorage.getItem('skylance-opts') || '{}'); if (s.invert) $('#optInvert').checked = true; if (s.quality) $('#optQuality').value = s.quality; if (s.fps) $('#optFps').checked = true; if (s.blur === false) $('#optBlur').checked = false; if (s.beginner) $('#optBeginner').checked = true; if (s.lock) $('#optLock').value = s.lock; if (s.guide) $('#optGuide').checked = true; if (s.callsign) $('#callsign').value = s.callsign; } catch (e) {}
+try { const s = JSON.parse(localStorage.getItem('skylance-opts') || '{}'); if (s.invert) $('#optInvert').checked = true; if (s.quality) $('#optQuality').value = s.quality; if (s.fps) $('#optFps').checked = true; if (s.blur === false) $('#optBlur').checked = false; if (s.beginner) $('#optBeginner').checked = true; if (s.hard) $('#optHard').checked = true; if (s.lock) $('#optLock').value = s.lock; if (s.guide) $('#optGuide').checked = true; if (s.callsign) $('#callsign').value = s.callsign; } catch (e) {}
 function jetDetail(low) { scene.traverse(o => { const m = o.material; if (!o.isMesh || !m || !m.isMeshPhysicalMaterial) return;
   if (!m.userData.hi) m.userData.hi = { n: m.normalMap, r: m.roughnessMap, c: m.clearcoat };
   const h = m.userData.hi, n = low ? null : h.n, r = low ? null : h.r; if (m.normalMap !== n || m.roughnessMap !== r) { m.normalMap = n; m.roughnessMap = r; m.needsUpdate = true; }
@@ -5719,7 +5719,7 @@ function applyQuality(q) {
   quality = q; LOWQ.value = q === 'low' ? 1 : 0; CLOUDS.forEach((c, i) => { c.visible = q !== 'low' || i % 3 === 0; }); jetDetail(q === 'low'); sun.castShadow = q !== 'low'; renderer.setPixelRatio(pixelRatioFor(q)); resize(); post.first = true;
   const qb = $('#qualityBtn'); if (qb) qb.textContent = '描画モード：' + (q === 'low' ? 'FPS重視' : 'グラフィック重視');
   if ($('#optQuality').value !== q) $('#optQuality').value = q;
-  try { localStorage.setItem('skylance-opts', JSON.stringify({ invert: $('#optInvert').checked, quality: q, fps: $('#optFps').checked, blur: $('#optBlur').checked, beginner: $('#optBeginner').checked, lock: $('#optLock').value, guide: $('#optGuide').checked, callsign: $('#callsign').value })); } catch (e) {}
+  try { localStorage.setItem('skylance-opts', JSON.stringify({ invert: $('#optInvert').checked, quality: q, fps: $('#optFps').checked, blur: $('#optBlur').checked, beginner: $('#optBeginner').checked, hard: $('#optHard').checked, lock: $('#optLock').value, guide: $('#optGuide').checked, callsign: $('#callsign').value })); } catch (e) {}
 }
 function resize() {
   W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
@@ -5743,7 +5743,7 @@ player.pos.set(0, 3000, 14500);
 resize();
 updateLoadoutSummary(); menuFocus(); setTimeout(showAchMail, 1500);
 // test hook, local dev server only
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { fireSpecial, rebuildPlayerMesh, makeJet, WG, setCam: v => { camView = v; }, showAchMail, sfxRadio, startBrief, enemyMesh, makeLandshipMesh, makeFactoryMesh, makeAirbase, get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__sky = { opts, readOpts, launchMissile, damagePlayer, fireSpecial, rebuildPlayerMesh, makeJet, WG, setCam: v => { camView = v; }, showAchMail, sfxRadio, startBrief, enemyMesh, makeLandshipMesh, makeFactoryMesh, makeAirbase, get smoke() { return smoke; }, showMpResult, mpSnapshot, fireRail, bombBlast, ACH, achAdd, achUnlock, LO, PARTS, refreshLoadout, renderAch, renderHangar, renderCampaign, CMISSIONS, campGround, startMission, get ST() { return ST; }, get supply() { return SUPPLY; }, get brf() { return BRF; }, missiles, startBrief, briefStep: (n, dt = 1 / 30) => { for (let i = 0; i < n && state === "brief"; i++) { briefUpdate(dt); smoke.update(dt); fire.update(dt); } return BRF.t; }, setMap, CAMP, startCampaign, grounds, get result() { return missionResult; }, get mt() { return missionTime; }, NET, sun, hemi, post, water, terrain, renderer, scene, camera, sim: (n, dt = 1 / 60, fn) => { for (let i = 0; i < n; i++) { if (fn) fn(); update(dt); smoke.update(dt); fire.update(dt); water.material.uniforms.time.value += dt; updateWake(dt); updateCamera(dt, null); } }, enemies, puppets, player, nextWave: () => { for (const e of enemies) if (e.alive && !e.pod) destroy(e, true); }, boss: c => spawnBoss(c), look: o => { scene.remove(player.mesh); player.mesh = makeJet(o); scene.add(player.mesh); }, get cur() { return curTarget; }, get locked() { return locked; }, damage: (e, d, src) => damage(e, d, true, null, src), tick: sec => { for (let t = 0; t < sec; t += .05) { if (state === 'play') update(.05); else if (state === 'mlobby') netUpdate(.05); } return [NET.view && NET.view.ph, NET.view && NET.view.wave, enemies.filter(e => e.alive).length]; } };
 requestAnimationFrame(frame);
 })();
 </script>
