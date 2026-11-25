@@ -461,6 +461,7 @@ const MAPS = {
   strait: { shape: 'strait', ox: 7.7, oz: -25.5, mount: .7, pal: 'rock', sky: 'storm', name: 'ヴェスパー海峡' },
   canyon: { shape: 'canyon', ox: 41.2, oz: -17.4, mount: .6, pal: 'desert', sky: 'noon', name: 'ヴァルカ本土・赤岩峡谷' },
   fjord: { shape: 'fjord', ox: -33.1, oz: -28.2, mount: 1.5, pal: 'snow', sky: 'cold', name: 'イスベル・フィヨルド' },
+  nightcoast: { shape: 'coast', ox: 18.4, oz: -6.1, mount: .85, pal: 'rock', sky: 'night', name: 'ノルド岬・夜間' },
   final: { shape: 'archi', ox: 52.6, oz: 33.3, mount: .35, pal: 'tropic', sky: 'sunset', name: '雲海の果て' }
 };
 let MAP = MAPS.home, mapId = 'home';
@@ -613,6 +614,7 @@ const SKIES = {
   evening: { zen: [.2, .3, .55], hor: [.96, .74, .52], sun: [-.8, .2, .2], sunC: [1, .72, .45], sunI: 1.4, hemi: [0xa8a8d0, 0x3a3428, .25], fog: .000036 },
   storm: { zen: [.04, .06, .1], hor: [.16, .19, .25], sun: [.3, .6, .4], sunC: [.55, .65, .85], sunI: .45, hemi: [0x40506a, 0x101418, .45], fog: .00008 },
   cold: { zen: [.22, .4, .68], hor: [.82, .88, .94], sun: [.5, .3, .6], sunC: [1, .96, .92], sunI: 1.5, hemi: [0xc8dcff, 0x8090a0, .3], fog: .00003 },
+  night: { zen: [.012, .022, .07], hor: [.05, .07, .13], sun: [-.4, .55, -.5], sunC: [.5, .62, .95], sunI: .6, hemi: [0x2a3a66, 0x080a10, .5], fog: .000045 },
   sunset: { zen: [.1, .14, .36], hor: [1, .52, .3], sun: [0, .06, -1], sunC: [1, .5, .24], sunI: 1.25, hemi: [0x8a7ab0, 0x302020, .28], fog: .000034 }
 };
 function fogTargets() { const out = [water && water.material.uniforms.fogDensity]; for (const p of [smoke, fire]) if (p) out.push(p.mat.uniforms.fogDensity);
@@ -1829,7 +1831,7 @@ const campSave_init = () => { try { return (JSON.parse(localStorage.getItem('sky
 try { const a = JSON.parse(localStorage.getItem('skylance-ach') || '{}'); if (a.u) ACH.u = a.u; if (a.c) ACH.c = a.c; if (Array.isArray(a.p)) ACH.pend = a.p; } catch (e) {}
 const achSave = () => { try { localStorage.setItem('skylance-ach', JSON.stringify({ u: ACH.u, c: ACH.c, p: ACH.pend })); } catch (e) {} };
 const ACH_DEF = [
-  { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全9話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
+  { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全10話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
   { id: 'nohit', n: '無傷の槍', d: '1回も被弾せずにミッションをクリア', rw: '追加装甲 III' },
   { id: 'allS', n: '全話S評価', d: 'キャンペーン全10話でS評価を取る', rw: '塗装 GOLDEN LANCE', pr: () => [Object.values(campSave.get().ranks || {}).filter(r => r === 'S').length, 10] },
   { id: 'lowalt', n: '地を這う鷹', d: '低空（高度150m以下）の飛行が累計10分', rw: '機銃 GAU-8 ROTARY', cnt: 'low', need: 600, fmt: v => Math.floor(v / 60) + ' / 10分' },
@@ -1838,10 +1840,10 @@ const ACH_DEF = [
   { id: 'rail10', n: '一閃', d: 'レールガンの貫通で累計10体撃破（先頭の目標以外）', rw: 'EML-II', cnt: 'railKill', need: 10 },
   { id: 'bossClean', n: 'ノーダメージ撃破', d: '被弾せずにボスを撃破', rw: 'TLS-X' },
   { id: 'mpwin10', n: '対戦の覇者', d: 'マルチ対戦で累計10勝', rw: '塗装 VERSUS', cnt: 'mpWin', need: 10 },
-  { id: 'allclear', n: '全戦線制覇', d: '本編10話と追加章9話をすべてクリア', rw: '新機体 THUNDERBOLT（A-10C）', pr: () => [Math.min(10, campCleared()) + Object.keys(campSave.get().x || {}).length, 19] },
-  { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全9話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 9] }];
+  { id: 'allclear', n: '全戦線制覇', d: '本編10話と追加章10話をすべてクリア', rw: '新機体 THUNDERBOLT（A-10C）', pr: () => [Math.min(10, campCleared()) + Object.keys(campSave.get().x || {}).length, 20] },
+  { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全10話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 10] }];
 if (campSave_init()) ACH.u.camp10 = ACH.u.camp10 || Date.now();
-try { const cs = JSON.parse(localStorage.getItem('skylance-camp') || '{}'); if ((cs.cleared || 0) >= 10 && Object.keys(cs.x || {}).length >= 9) { if (!ACH.u.extraAll) ACH.u.extraAll = Date.now(); if (!ACH.u.allclear) { ACH.u.allclear = Date.now(); ACH.pend.push('allclear'); } } } catch (e) {}
+try { const cs = JSON.parse(localStorage.getItem('skylance-camp') || '{}'); if ((cs.cleared || 0) >= 10 && Object.keys(cs.x || {}).length >= 10) { if (!ACH.u.extraAll) ACH.u.extraAll = Date.now(); if (!ACH.u.allclear) { ACH.u.allclear = Date.now(); ACH.pend.push('allclear'); } } } catch (e) {}
 const achHas = id => !!ACH.u[id];
 const partLocked = pt => !!(pt && pt.ach && !ACH.u[pt.ach]);
 const achOn = () => !opts.beginner && mode !== 'tutorial' && mode !== 'multi';
@@ -2631,7 +2633,7 @@ function updateGround(g, dt) {
   if (g.type === 'RADAR' && g.mesh.userData.dish) g.mesh.userData.dish.rotation.y += dt * 1.6;
   if ((g.type === 'SAM' || g.aa) && player.alive && !g.friend) {
     g.cd -= dt; const d = g.pos.distanceTo(player.pos);
-    if (d < 5200 && g.cd <= 0 && enemyMissileCount() < 3 && !(player.stlT > 0)) {
+    if (d < 5200 && g.cd <= 0 && enemyMissileCount() < 3 && !(player.stlT > 0) && !(CAMP.m && CAMP.f.dark && !(CAMP.f.spot > 0))) {
       _v1.subVectors(player.pos, g.pos).normalize(); _v1.y = Math.max(_v1.y, .35) + .5; _v1.normalize();
       _v2.copy(g.pos).add(_v3.set(0, 8, 0));
       launchMissile(null, _v2, _v1, 120, player, 'enemy', UP, 0, null, 0);
@@ -4474,15 +4476,22 @@ function makePipeMesh() { // power conduit: capped column with glowing coils, a 
   gcy(g, GM.steel, 5, 5, 180, 0, 5, -100, 10, Math.PI / 2); for (let i = 0; i < 4; i++) gcy(g, GM.red, 5.6, 5.6, 3, 0, 5, -30 - i * 40, 10, Math.PI / 2);
   return gShadow(g);
 }
+function makeSearchlightMesh() { const g = new THREE.Group(), dk = new THREE.MeshStandardMaterial({ color: 0x3a3f3a, roughness: .7, metalness: .4 });
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(5, 7, 3, 10), dk); b.position.y = 1.5; g.add(b);
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 14, 8), dk); m.position.y = 9; g.add(m);
+  const head = new THREE.Group(); head.position.y = 17; g.add(head);
+  const can = new THREE.Mesh(new THREE.CylinderGeometry(4, 4.6, 8, 14), dk); can.rotation.x = Math.PI / 2; head.add(can);
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(3.6, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 4, 3.4) })); lens.position.z = -4.1; lens.rotation.y = Math.PI; head.add(lens);
+  g.userData.head = head; return g; }
 function campGround(type, x, z, h, o = {}) {
-  const mesh = type === 'SAM' ? makeSAM() : type === 'AA' ? makeAAMesh() : type === 'RADAR' ? makeRadar() : type === 'TANK' ? makeTanks() : type === 'HANGAR' ? makeHangarMesh() : type === 'CV' ? makeCarrier() : type === 'LAND' ? makeLandshipMesh() : type === 'TUR' ? makeTurretMesh() : type === 'FACT' ? makeFactoryMesh() : type === 'PIPE' ? makePipeMesh() : type === 'SATC' ? makeSatTower() : makeShipMesh(type);
+  const mesh = type === 'SLIGHT' ? makeSearchlightMesh() : type === 'SAM' ? makeSAM() : type === 'AA' ? makeAAMesh() : type === 'RADAR' ? makeRadar() : type === 'TANK' ? makeTanks() : type === 'HANGAR' ? makeHangarMesh() : type === 'CV' ? makeCarrier() : type === 'LAND' ? makeLandshipMesh() : type === 'TUR' ? makeTurretMesh() : type === 'FACT' ? makeFactoryMesh() : type === 'PIPE' ? makePipeMesh() : type === 'SATC' ? makeSatTower() : makeShipMesh(type);
   const ship = type === 'DD' || type === 'CG' || type === 'BB' || type === 'LST' || type === 'CV', big = type === 'CV' || type === 'LAND' || type === 'TUR' || type === 'FACT' || type === 'PIPE' || type === 'SATC';
   if (!ship && !big) mesh.scale.setScalar(type === 'HANGAR' ? 1 : 1.4); if (type === 'CV') mesh.scale.setScalar(1.25);
   mesh.position.set(x, ship ? 0 : h - 1, z); mesh.rotation.y = o.rot != null ? o.rot : rand(0, 6.28); scene.add(mesh);
-  const hp = { SAM: 100, AA: 90, RADAR: 100, TANK: 100, HANGAR: 160, DD: 220, CG: 340, LST: 180, BB: 700, CV: 1500, LAND: 2800, TUR: 320, FACT: 260, PIPE: 320, SATC: 99999 }[type];
-  const g = { kind: 'ground', type, label: { AA: 'AAA', DD: 'DDG', CG: 'CG', LST: 'LST', BB: 'BB', CV: 'CARRIER', LAND: 'LANDSHIP', TUR: 'TURRET', FACT: 'FACTORY', PIPE: 'CONDUIT', SATC: 'ZENITH' }[type] || type, mesh, pos: new V3(x, type === 'CV' ? 22 : type === 'LAND' ? h + 40 : type === 'TUR' ? h + 62 : type === 'PIPE' ? h + 52 : type === 'SATC' ? h + 150 : ship ? 8 : h + 6, z), vel: new V3(), alive: true, hp, maxHp: hp,
+  const hp = { SAM: 100, AA: 90, RADAR: 100, TANK: 100, HANGAR: 160, DD: 220, CG: 340, LST: 180, BB: 700, CV: 1500, LAND: 2800, TUR: 320, FACT: 260, SLIGHT: 70, PIPE: 320, SATC: 99999 }[type];
+  const g = { kind: 'ground', type, label: { AA: 'AAA', DD: 'DDG', CG: 'CG', LST: 'LST', BB: 'BB', CV: 'CARRIER', LAND: 'LANDSHIP', TUR: 'TURRET', FACT: 'FACTORY', SLIGHT: 'SEARCHLIGHT', PIPE: 'CONDUIT', SATC: 'ZENITH' }[type] || type, mesh, pos: new V3(x, type === 'CV' ? 22 : type === 'LAND' ? h + 40 : type === 'TUR' ? h + 62 : type === 'PIPE' ? h + 52 : type === 'SATC' ? h + 150 : ship ? 8 : h + 6, z), vel: new V3(), alive: true, hp, maxHp: hp,
     radius: { BB: 70, CG: 46, CV: 150, LAND: 150, TUR: 30, FACT: 38, PIPE: 32, SATC: 60 }[type] || (ship ? 38 : 26), msl: { LAND: .1, TUR: .3, CV: .5 }[type], armor: type === 'LAND' || type === 'CV' ? true : undefined,
-    score: { SAM: 800, AA: 700, RADAR: 600, TANK: 400, HANGAR: 900, DD: 1500, CG: 2500, LST: 1200, BB: 6000, CV: 7000, LAND: 12000, TUR: 1500, FACT: 1200, PIPE: 3000, SATC: 0 }[type], cd: rand(4, 9), smokeT: 0, wreck: false, ship, aa: type === 'AA' };
+    score: { SAM: 800, AA: 700, RADAR: 600, TANK: 400, HANGAR: 900, DD: 1500, CG: 2500, LST: 1200, BB: 6000, CV: 7000, LAND: 12000, TUR: 1500, FACT: 1200, SLIGHT: 500, PIPE: 3000, SATC: 0 }[type], cd: rand(4, 9), smokeT: 0, wreck: false, ship, aa: type === 'AA' };
   if (type === 'AA') g.type = 'SAM';
   if (type === 'FACT') g.stacks = mesh.userData.stacks;
   Object.assign(g, o); grounds.push(g); return g;
@@ -5075,13 +5084,39 @@ const XMISSIONS = [
       if (F.wave >= 3 && !alive) return campEnd(true);
     },
     win: [['NIGHTJAR', '全機撃墜。あの少ない弾で…信じられない腕だ。'], ['GRIFFON', '最後の一発まで当てる。それが本物のエースだ。']] },
+  { id: 20, tag: 'E10', extra: true, title: '闇夜の探照灯', en: 'Searchlight Night', map: 'nightcoast', time: 660, supply: false,
+    story: '月明かりだけの夜。岬の燃料基地を守る探照灯が、闇を薙いでいる。光に捕まれば、眠っていた対空砲とSAMが一斉に目を覚ます。光を避けて忍び込み、燃料備蓄基地を破壊しろ。探照灯を先に潰せば、基地は闇のまま丸裸になる。',
+    facts: [['目的', '燃料備蓄基地6か所の破壊'], ['敗北', '撃墜される・時間切れ'], ['仕組み', '探照灯の光に入ると SPOTTED。対空砲・SAMは見つかっている間（＋5秒）だけ撃ってくる'], ['ヒント', '低空で光の下をくぐるか、探照灯を壊せ。STEALTH/ECMも有効。夜は目標が見えにくい。ロックと目標表示を頼れ']],
+    start() {
+      player.pos.set(0, 1500, 13500); const F = CAMP.f; F.dark = true; F.spot = 0; F.lights = []; F.depots = []; F.beams = [];
+      const c = campSpot({ x0: -3000, x1: 3000, z0: -9000, z1: -5500, hMin: 25, hMax: 300 }), away = [];
+      const put = (type, r, gap, n, cb) => { for (let i = 0; i < n; i++) { const sp = campSpot({ x0: c[0] - r, x1: c[0] + r, z0: c[1] - r * .85, z1: c[1] + r * .85, hMin: 12, hMax: 500, away, gap }); away.push(sp); cb(campGround(type, sp[0], sp[1], sp[2]), sp); } };
+      put('FACT', 1500, 420, 6, g => { g.label = 'DEPOT'; F.depots.push(g); const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(4, .3, .2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); sp.scale.setScalar(70); sp.position.set(g.pos.x, g.pos.y + 90, g.pos.z); scene.add(sp); CAMP.extras.push(sp); g.beacon = sp; });
+      put('SLIGHT', 2300, 520, 8, (g, sp) => { g.h = rand(0, 6.28); g.rate = rand(.18, .3) * (Math.random() < .5 ? -1 : 1); const bm = makeBeam(new THREE.Color(1.2, 1.2, .95)), bg = makeBeam(new THREE.Color(.35, .35, .3)); CAMP.extras.push(bm, bg); g.bm = bm; g.bg = bg; g.tilt = rand(.9, 1.15); F.lights.push(g); });
+      put('SAM', 2300, 380, 4, () => {}); put('AA', 2300, 380, 4, () => {}); put('TANK', 1800, 300, 3, () => {});
+      after(95, () => { squad('F', 3, 0, 2400, -14000, 0); radio('NIGHTJAR', '迎撃機3機！ 暗闇で見失うな！', 3.5, true); });
+      radio('NIGHTJAR', 'こちらナイトジャー。夜間作戦だ。探照灯の光に入ると、基地の対空砲が起きる。光を避けて接近しろ。'); radio('WREN', '光の筋が見えるでしょ。あれの下をくぐるのが、いちばん怖いけど安全…かも。', 4.5);
+    },
+    tick(dt) {
+      const F = CAMP.f, P = player, left = F.depots.filter(g => g.alive).length; let seen = false;
+      for (const g of F.lights) { const on = g.alive; g.bm.visible = g.bg.visible = on; if (!on) continue;
+        g.h += g.rate * dt; const el = g.tilt + Math.sin(missionTime * .35 + g.pos.x) * .25; _v2.set(g.pos.x, g.pos.y + 20, g.pos.z); _v1.set(Math.cos(g.h) * Math.cos(el), Math.sin(el), Math.sin(g.h) * Math.cos(el)); _v3.copy(_v2).addScaledVector(_v1, 5200);
+        placeBeam(g.bm, _v2, _v3, 9); placeBeam(g.bg, _v2, _v3, 44);
+        if (P.alive && !(P.stlT > 0)) { _v4.subVectors(P.pos, _v2); const al = _v4.dot(_v1); if (al > 0 && al < 5200 && _v4.addScaledVector(_v1, -al).length() < 60 + al * .03) seen = true; } }
+      if (seen) { if (!(F.spot > 0)) { showMsg('SPOTTED', WARN, 2, true); sfxTone(900, 600, .5, .15, 'square'); radio('NIGHTJAR', pick(['見つかった！ 対空砲が目を覚ますぞ！', '探照灯に捕まった、光から外れろ！']), 3, true); } F.spot = 5; } else if (F.spot > 0) F.spot -= dt;
+      for (const g of F.depots) if (g.beacon) { g.beacon.visible = g.alive; g.beacon.material.opacity = .5 + .5 * Math.max(0, Math.sin(missionTime * 4 + g.pos.x)); }
+      const nl = F.lights.filter(g => g.alive).length;
+      CAMP.obj = `燃料備蓄基地を破壊せよ  残り ${left}/6`; CAMP.status = [F.spot > 0 ? `!! SPOTTED ${Math.ceil(F.spot)} !!` : `HIDDEN  ·  探照灯 ${nl}`, F.spot > 0];
+      if (missionTime > 3 && !left) return campEnd(true);
+    },
+    win: [['NIGHTJAR', '燃料基地の炎上を確認。闇に乗じた、見事な夜襲だった。'], ['WREN', '真っ暗な空に、燃料の炎がきれいで…ちょっと怖かったよ。']] },
 ];
 CMISSIONS.push(...XMISSIONS);
 function campEnd(win, reason) {
   if (missionResult) return;
   missionResult = win ? 'win' : 'fail'; endTimer = win ? 8 : 4;
   if (win) { showMsg('MISSION ACCOMPLISHED', HUDC, 7, true); (CAMP.m.win || []).forEach(([w, t]) => radio(w, t, 5)); const sv = campSave.get(); if (CAMP.m.extra) { sv.x = sv.x || {}; sv.x[CAMP.m.id] = 1; } else sv.cleared = Math.max(sv.cleared || 0, CAMP.m.id); campSave.set(sv);
-    if (achOn()) { if (!missionHurt) achUnlock('nohit'); if (!CAMP.m.extra && sv.cleared >= 10) achUnlock('camp10'); if (CAMP.m.extra && Object.keys(sv.x).length >= 9) achUnlock('extraAll'); } }
+    if (achOn()) { if (!missionHurt) achUnlock('nohit'); if (!CAMP.m.extra && sv.cleared >= 10) achUnlock('camp10'); if (CAMP.m.extra && Object.keys(sv.x).length >= 10) achUnlock('extraAll'); } }
   else { player.failReason = reason; showMsg('MISSION FAILED', WARN, 4, true); }
 }
 function campTick(dt) {
@@ -5365,6 +5400,7 @@ BRIEF_LINES[16] = [['NIGHTJAR', '山岳地帯の中央に、軌道衛星とリ�
 BRIEF_LINES[17] = [['NIGHTJAR', 'ヴァルカが無人機を使い捨てで投入してきた。1機は脆いが、数が多い。'], ['WREN', '4AAMみたいな多重ロックの兵装があれば、まとめて落とせるよ。'], ['NIGHTJAR', '3波に分かれて来る。補給は基地の上を低空で通れば受けられる。']];
 BRIEF_LINES[18] = [['NIGHTJAR', '特攻無人機にEMPが積まれている。接近を許せば、数秒間ロックも兵装も止まる。'], ['GRIFFON', 'ECM/JAMポッドを積んでおけ。発動中は、パルスを無効化できる。'], ['NIGHTJAR', '機銃は電子機器に頼らない。いざという時は、機銃で落とせ。']];
 BRIEF_LINES[19] = [['NIGHTJAR', '補給路を断たれた。使える弾は、ミサイル10発と機銃450発だけだ。'], ['WREN', '一発も無駄にできないね。ロックが完全に入るまで我慢しよう。'], ['NIGHTJAR', '補給は一切ない。弾が尽きたら…体当たりしかなくなる。']];
+BRIEF_LINES[20] = [['NIGHTJAR', '月夜の岬だ。燃料備蓄基地を叩く。だが、敵は探照灯の網を張っている。'], ['GRIFFON', '光の中に入ったら最後だ。対空砲が一斉に起きる。光の下を低くくぐるか、先に灯を潰せ。'], ['WREN', '見つからなければ、対空砲は寝てるままだよ。静かにね、ケストレル。']];
 function startBrief(i) {
   startCampaign(i); const M = CAMP.m, P = player;
   BRF.save = { pos: P.pos.clone(), quat: P.quat.clone(), speed: P.speed };
@@ -5485,7 +5521,7 @@ function renderCampaign() {
     return (m.extra && !CMISSIONS[i - 1].extra ? '<div class="cl-sep">EXTRA — 追加章</div>' : '') + `<button class="cl${i === campSel ? ' on' : ''}" data-i="${i}" ${lock ? 'disabled' : ''}>
     <span class="cl-n">${mtag(m)}</span><span class="cl-t">${lock ? (m.extra ? '― 全10話クリアで解放 ―' : '― LOCKED ―') : m.title}</span>${ok ? '<span class="cl-ok">CLEAR</span>' : ''}</button>`; }).join('');
   document.querySelectorAll('#campList .cl').forEach(b => { b.addEventListener('click', () => { campSel = +b.dataset.i; renderCampaign(); }); b.addEventListener('dblclick', () => { campSel = +b.dataset.i; readOpts(); if (sortieOk()) startBrief(campSel); }); });
-  const m = CMISSIONS[campSel], sky = { dawn: '夜明け', morning: '朝', overcast: '曇天', noon: '昼', dusk: '夕方', evening: '夕暮れ', storm: '嵐の夜', cold: '寒冷・晴天', sunset: '日没' }[MAPS[m.map].sky];
+  const m = CMISSIONS[campSel], sky = { dawn: '夜明け', morning: '朝', overcast: '曇天', noon: '昼', dusk: '夕方', evening: '夕暮れ', storm: '嵐の夜', night: '月夜', cold: '寒冷・晴天', sunset: '日没' }[MAPS[m.map].sky];
   $('#cbKicker').textContent = `${m.extra ? 'Extra' : 'Mission'} ${mtag(m)} · ${MAPS[m.map].name} · ${sky} · 制限時間 ${fmtTime(m.time)}`;
   $('#cbTitle').textContent = `${m.title}  —  ${m.en}`; $('#cbStory').textContent = m.story;
   $('#cbFacts').innerHTML = m.facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
