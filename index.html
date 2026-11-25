@@ -268,6 +268,7 @@ canvas,img{-webkit-touch-callout:none;-webkit-user-drag:none;user-select:none}
         <h2 class="md-title">Settings</h2>
         <div class="opts">
           <label for="optBeginner"><input type="checkbox" id="optBeginner"> 初心者モード（HP無限）</label>
+          <label for="optHard"><input type="checkbox" id="optHard"> HARDモード（敵ミサイル+20%速・被ダメ1.5倍・敵が正面ミサイルを回避）</label>
           <label for="optInvert"><input type="checkbox" id="optInvert"> 操縦反転（W で機首上げ）</label>
           <label for="optGuide"><input type="checkbox" id="optGuide"> 操作ガイドを常に表示</label>
           <label for="optBlur"><input type="checkbox" id="optBlur" checked> モーションブラー</label>
@@ -5787,7 +5788,7 @@ function toTitle() {
   if (SND.ctx) { SND.ctx.resume(); ['engG', 'roarG', 'windG', 'lockG', 'alertG', 'warnG', 'gunG'].forEach(k => SND[k].gain.value = 0); }
   setTimeout(showAchMail, 1100);
 }
-function readOpts() { invert = $('#optInvert').checked; blurOn = $('#optBlur').checked; opts.beginner = $('#optBeginner').checked; opts.hard = $('#optHard').checked && !opts.beginner; opts.lockMode = $('#optLock').value; opts.guide = $('#optGuide').checked; $('#fpsMeter').hidden = !$('#optFps').checked; applyQuality($('#optQuality').value); }
+function readOpts() { invert = $('#optInvert').checked; blurOn = $('#optBlur').checked; opts.beginner = $('#optBeginner').checked; opts.hard = !!($('#optHard') && $('#optHard').checked) && !opts.beginner; opts.lockMode = $('#optLock').value; opts.guide = $('#optGuide').checked; $('#fpsMeter').hidden = !$('#optFps').checked; applyQuality($('#optQuality').value); }
 // ---- main menu: hover/focus shows the matching detail sheet; arrow keys move between items
 const menuItems = [...document.querySelectorAll('#title .mi')];
 function menuShow(id) {
@@ -5847,7 +5848,7 @@ $('#quitBtn').addEventListener('click', () => { if (SND.ctx) SND.ctx.resume(); t
 $('#retryBtn').addEventListener('click', () => { if (CAMP.m) startCampaign(CAMP.idx); else startMission(); });
 $('#nextBtn').addEventListener('click', () => startBrief(CAMP.idx + 1));
 $('#menuBtn').addEventListener('click', toTitle);
-try { const s = JSON.parse(localStorage.getItem('skylance-opts') || '{}'); if (s.invert) $('#optInvert').checked = true; if (s.quality) $('#optQuality').value = s.quality; if (s.fps) $('#optFps').checked = true; if (s.blur === false) $('#optBlur').checked = false; if (s.beginner) $('#optBeginner').checked = true; if (s.hard) $('#optHard').checked = true; if (s.lock) $('#optLock').value = s.lock; if (s.guide) $('#optGuide').checked = true; if (s.callsign) $('#callsign').value = s.callsign; } catch (e) {}
+try { const s = JSON.parse(localStorage.getItem('skylance-opts') || '{}'); if (s.invert) $('#optInvert').checked = true; if (s.quality) $('#optQuality').value = s.quality; if (s.fps) $('#optFps').checked = true; if (s.blur === false) $('#optBlur').checked = false; if (s.beginner) $('#optBeginner').checked = true; if (s.hard && $('#optHard')) $('#optHard').checked = true; if (s.lock) $('#optLock').value = s.lock; if (s.guide) $('#optGuide').checked = true; if (s.callsign) $('#callsign').value = s.callsign; } catch (e) {}
 function jetDetail(low) { scene.traverse(o => { const m = o.material; if (!o.isMesh || !m || !m.isMeshPhysicalMaterial) return;
   if (!m.userData.hi) m.userData.hi = { n: m.normalMap, r: m.roughnessMap, c: m.clearcoat };
   const h = m.userData.hi, n = low ? null : h.n, r = low ? null : h.r; if (m.normalMap !== n || m.roughnessMap !== r) { m.normalMap = n; m.roughnessMap = r; m.needsUpdate = true; }
@@ -5857,7 +5858,7 @@ function applyQuality(q) {
   quality = q; LOWQ.value = q === 'low' ? 1 : 0; CLOUDS.forEach((c, i) => { c.visible = q !== 'low' || i % 3 === 0; }); jetDetail(q === 'low'); sun.castShadow = q !== 'low'; renderer.setPixelRatio(pixelRatioFor(q)); resize(); post.first = true;
   const qb = $('#qualityBtn'); if (qb) qb.textContent = '描画モード：' + (q === 'low' ? 'FPS重視' : 'グラフィック重視');
   if ($('#optQuality').value !== q) $('#optQuality').value = q;
-  try { localStorage.setItem('skylance-opts', JSON.stringify({ invert: $('#optInvert').checked, quality: q, fps: $('#optFps').checked, blur: $('#optBlur').checked, beginner: $('#optBeginner').checked, hard: $('#optHard').checked, lock: $('#optLock').value, guide: $('#optGuide').checked, callsign: $('#callsign').value })); } catch (e) {}
+  try { localStorage.setItem('skylance-opts', JSON.stringify({ invert: $('#optInvert').checked, quality: q, fps: $('#optFps').checked, blur: $('#optBlur').checked, beginner: $('#optBeginner').checked, hard: !!($('#optHard') && $('#optHard').checked), lock: $('#optLock').value, guide: $('#optGuide').checked, callsign: $('#callsign').value })); } catch (e) {}
 }
 function resize() {
   W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 2);
