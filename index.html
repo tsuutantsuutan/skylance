@@ -462,6 +462,7 @@ const MAPS = {
   canyon: { shape: 'canyon', ox: 41.2, oz: -17.4, mount: .6, pal: 'desert', sky: 'noon', name: 'ヴァルカ本土・赤岩峡谷' },
   fjord: { shape: 'fjord', ox: -33.1, oz: -28.2, mount: 1.5, pal: 'snow', sky: 'cold', name: 'イスベル・フィヨルド' },
   nightcoast: { shape: 'coast', ox: 18.4, oz: -6.1, mount: .85, pal: 'rock', sky: 'night', name: 'ノルド岬・夜間' },
+  nightisle: { shape: 'island', ox: -9.7, oz: 14.2, mount: .5, pal: 'green', sky: 'night', name: 'ゴルス潜伏島・夜間' },
   final: { shape: 'archi', ox: 52.6, oz: 33.3, mount: .35, pal: 'tropic', sky: 'sunset', name: '雲海の果て' }
 };
 let MAP = MAPS.home, mapId = 'home';
@@ -1831,7 +1832,7 @@ const campSave_init = () => { try { return (JSON.parse(localStorage.getItem('sky
 try { const a = JSON.parse(localStorage.getItem('skylance-ach') || '{}'); if (a.u) ACH.u = a.u; if (a.c) ACH.c = a.c; if (Array.isArray(a.p)) ACH.pend = a.p; } catch (e) {}
 const achSave = () => { try { localStorage.setItem('skylance-ach', JSON.stringify({ u: ACH.u, c: ACH.c, p: ACH.pend })); } catch (e) {} };
 const ACH_DEF = [
-  { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全10話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
+  { id: 'camp10', n: '落ちない槍', d: 'キャンペーン全10話をクリア', rw: 'EXTRA 追加章（全12話）が開放', pr: () => [Math.min(10, campCleared()), 10] },
   { id: 'nohit', n: '無傷の槍', d: '1回も被弾せずにミッションをクリア', rw: '追加装甲 III' },
   { id: 'allS', n: '全話S評価', d: 'キャンペーン全10話でS評価を取る', rw: '塗装 GOLDEN LANCE', pr: () => [Object.values(campSave.get().ranks || {}).filter(r => r === 'S').length, 10] },
   { id: 'lowalt', n: '地を這う鷹', d: '低空（高度150m以下）の飛行が累計10分', rw: '機銃 GAU-8 ROTARY', cnt: 'low', need: 600, fmt: v => Math.floor(v / 60) + ' / 10分' },
@@ -1840,10 +1841,10 @@ const ACH_DEF = [
   { id: 'rail10', n: '一閃', d: 'レールガンの貫通で累計10体撃破（先頭の目標以外）', rw: 'EML-II', cnt: 'railKill', need: 10 },
   { id: 'bossClean', n: 'ノーダメージ撃破', d: '被弾せずにボスを撃破', rw: 'TLS-X' },
   { id: 'mpwin10', n: '対戦の覇者', d: 'マルチ対戦で累計10勝', rw: '塗装 VERSUS', cnt: 'mpWin', need: 10 },
-  { id: 'allclear', n: '全戦線制覇', d: '本編10話と追加章10話をすべてクリア', rw: '新機体 THUNDERBOLT（A-10C）', pr: () => [Math.min(10, campCleared()) + Object.keys(campSave.get().x || {}).length, 20] },
-  { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全10話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 10] }];
+  { id: 'allclear', n: '全戦線制覇', d: '本編10話と追加章12話をすべてクリア', rw: '新機体 THUNDERBOLT（A-10C）', pr: () => [Math.min(10, campCleared()) + Object.keys(campSave.get().x || {}).length, 22] },
+  { id: 'extraAll', n: '鉄の海岸線', d: '追加章 EXTRA を全12話クリア', rw: '塗装 PHANTOM', pr: () => [Object.keys(campSave.get().x || {}).length, 12] }];
 if (campSave_init()) ACH.u.camp10 = ACH.u.camp10 || Date.now();
-try { const cs = JSON.parse(localStorage.getItem('skylance-camp') || '{}'); if ((cs.cleared || 0) >= 10 && Object.keys(cs.x || {}).length >= 10) { if (!ACH.u.extraAll) ACH.u.extraAll = Date.now(); if (!ACH.u.allclear) { ACH.u.allclear = Date.now(); ACH.pend.push('allclear'); } } } catch (e) {}
+try { const cs = JSON.parse(localStorage.getItem('skylance-camp') || '{}'); if ((cs.cleared || 0) >= 10 && Object.keys(cs.x || {}).length >= 12) { if (!ACH.u.extraAll) ACH.u.extraAll = Date.now(); if (!ACH.u.allclear) { ACH.u.allclear = Date.now(); ACH.pend.push('allclear'); } } } catch (e) {}
 const achHas = id => !!ACH.u[id];
 const partLocked = pt => !!(pt && pt.ach && !ACH.u[pt.ach]);
 const achOn = () => !opts.beginner && mode !== 'tutorial' && mode !== 'multi';
@@ -2536,7 +2537,7 @@ function updateEnemy(e, dt) {
     if (e.pos.y < floorAt(e.pos.x, e.pos.z) + 2 || e.deadT > (e.boss ? 6 : 9)) { explode(e.pos, e.boss ? 3 : 1.3); scene.remove(e.mesh); e.removed = true; }
     return;
   }
-  if ((e.cruise || e.flee || e.retreatAt || e.retreating) && campAI(e, dt)) return;
+  if ((e.cruise || e.flee || e.retreatAt || e.retreating || e.parked || e.raider || e.bm) && campAI(e, dt)) return;
   if (e.boss) { updateBoss(e, dt); return; }
   if (e.pod) return; // moved by its boss
   e.retgtT = (e.retgtT || 0) - dt;
@@ -4476,6 +4477,9 @@ function makePipeMesh() { // power conduit: capped column with glowing coils, a 
   gcy(g, GM.steel, 5, 5, 180, 0, 5, -100, 10, Math.PI / 2); for (let i = 0; i < 4; i++) gcy(g, GM.red, 5.6, 5.6, 3, 0, 5, -30 - i * 40, 10, Math.PI / 2);
   return gShadow(g);
 }
+function makeRunwayMesh() { const g = new THREE.Group(), asp = new THREE.MeshStandardMaterial({ color: 0x25282b, roughness: .95 }), wh = new THREE.MeshStandardMaterial({ color: 0xd8d8cc, roughness: .8 }), lamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(.5, 1.6, 4) });
+  const box = (w, h, d, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
+  box(110, 2, 1500, 0, 1.2, 0, asp); for (let i = -14; i <= 14; i++) box(3, .4, 22, 0, 2.5, i * 50, wh); for (const sx of [-1, 1]) for (let i = -15; i <= 15; i++) box(1.6, 1.4, 1.6, sx * 54, 2.4, i * 48, lamp); for (let i = 0; i < 5; i++) box(40, .4, 4, 0, 2.5, -730 + i * 8, wh); return g; }
 function makeSearchlightMesh() { const g = new THREE.Group(), dk = new THREE.MeshStandardMaterial({ color: 0x3a3f3a, roughness: .7, metalness: .4 });
   const b = new THREE.Mesh(new THREE.CylinderGeometry(5, 7, 3, 10), dk); b.position.y = 1.5; g.add(b);
   const m = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 14, 8), dk); m.position.y = 9; g.add(m);
@@ -4484,14 +4488,14 @@ function makeSearchlightMesh() { const g = new THREE.Group(), dk = new THREE.Mes
   const lens = new THREE.Mesh(new THREE.CircleGeometry(3.6, 14), new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 4, 3.4) })); lens.position.z = -4.1; lens.rotation.y = Math.PI; head.add(lens);
   g.userData.head = head; return g; }
 function campGround(type, x, z, h, o = {}) {
-  const mesh = type === 'SLIGHT' ? makeSearchlightMesh() : type === 'SAM' ? makeSAM() : type === 'AA' ? makeAAMesh() : type === 'RADAR' ? makeRadar() : type === 'TANK' ? makeTanks() : type === 'HANGAR' ? makeHangarMesh() : type === 'CV' ? makeCarrier() : type === 'LAND' ? makeLandshipMesh() : type === 'TUR' ? makeTurretMesh() : type === 'FACT' ? makeFactoryMesh() : type === 'PIPE' ? makePipeMesh() : type === 'SATC' ? makeSatTower() : makeShipMesh(type);
-  const ship = type === 'DD' || type === 'CG' || type === 'BB' || type === 'LST' || type === 'CV', big = type === 'CV' || type === 'LAND' || type === 'TUR' || type === 'FACT' || type === 'PIPE' || type === 'SATC';
+  const mesh = type === 'RUNWAY' ? makeRunwayMesh() : type === 'SLIGHT' ? makeSearchlightMesh() : type === 'SAM' ? makeSAM() : type === 'AA' ? makeAAMesh() : type === 'RADAR' ? makeRadar() : type === 'TANK' ? makeTanks() : type === 'HANGAR' ? makeHangarMesh() : type === 'CV' ? makeCarrier() : type === 'LAND' ? makeLandshipMesh() : type === 'TUR' ? makeTurretMesh() : type === 'FACT' ? makeFactoryMesh() : type === 'PIPE' ? makePipeMesh() : type === 'SATC' ? makeSatTower() : makeShipMesh(type);
+  const ship = type === 'DD' || type === 'CG' || type === 'BB' || type === 'LST' || type === 'CV', big = type === 'CV' || type === 'LAND' || type === 'TUR' || type === 'FACT' || type === 'PIPE' || type === 'SATC' || type === 'RUNWAY';
   if (!ship && !big) mesh.scale.setScalar(type === 'HANGAR' ? 1 : 1.4); if (type === 'CV') mesh.scale.setScalar(1.25);
   mesh.position.set(x, ship ? 0 : h - 1, z); mesh.rotation.y = o.rot != null ? o.rot : rand(0, 6.28); scene.add(mesh);
-  const hp = { SAM: 100, AA: 90, RADAR: 100, TANK: 100, HANGAR: 160, DD: 220, CG: 340, LST: 180, BB: 700, CV: 1500, LAND: 2800, TUR: 320, FACT: 260, SLIGHT: 70, PIPE: 320, SATC: 99999 }[type];
-  const g = { kind: 'ground', type, label: { AA: 'AAA', DD: 'DDG', CG: 'CG', LST: 'LST', BB: 'BB', CV: 'CARRIER', LAND: 'LANDSHIP', TUR: 'TURRET', FACT: 'FACTORY', SLIGHT: 'SEARCHLIGHT', PIPE: 'CONDUIT', SATC: 'ZENITH' }[type] || type, mesh, pos: new V3(x, type === 'CV' ? 22 : type === 'LAND' ? h + 40 : type === 'TUR' ? h + 62 : type === 'PIPE' ? h + 52 : type === 'SATC' ? h + 150 : ship ? 8 : h + 6, z), vel: new V3(), alive: true, hp, maxHp: hp,
-    radius: { BB: 70, CG: 46, CV: 150, LAND: 150, TUR: 30, FACT: 38, PIPE: 32, SATC: 60 }[type] || (ship ? 38 : 26), msl: { LAND: .1, TUR: .3, CV: .5 }[type], armor: type === 'LAND' || type === 'CV' ? true : undefined,
-    score: { SAM: 800, AA: 700, RADAR: 600, TANK: 400, HANGAR: 900, DD: 1500, CG: 2500, LST: 1200, BB: 6000, CV: 7000, LAND: 12000, TUR: 1500, FACT: 1200, SLIGHT: 500, PIPE: 3000, SATC: 0 }[type], cd: rand(4, 9), smokeT: 0, wreck: false, ship, aa: type === 'AA' };
+  const hp = { SAM: 100, AA: 90, RADAR: 100, TANK: 100, HANGAR: 160, DD: 220, CG: 340, LST: 180, BB: 700, CV: 1500, LAND: 2800, TUR: 320, FACT: 260, RUNWAY: 1200, SLIGHT: 70, PIPE: 320, SATC: 99999 }[type];
+  const g = { kind: 'ground', type, label: { AA: 'AAA', DD: 'DDG', CG: 'CG', LST: 'LST', BB: 'BB', CV: 'CARRIER', LAND: 'LANDSHIP', TUR: 'TURRET', FACT: 'FACTORY', SLIGHT: 'SEARCHLIGHT', RUNWAY: 'RUNWAY', PIPE: 'CONDUIT', SATC: 'ZENITH' }[type] || type, mesh, pos: new V3(x, type === 'CV' ? 22 : type === 'LAND' ? h + 40 : type === 'TUR' ? h + 62 : type === 'PIPE' ? h + 52 : type === 'SATC' ? h + 150 : ship ? 8 : h + 6, z), vel: new V3(), alive: true, hp, maxHp: hp,
+    radius: { BB: 70, CG: 46, CV: 150, LAND: 150, TUR: 30, FACT: 38, RUNWAY: 130, PIPE: 32, SATC: 60 }[type] || (ship ? 38 : 26), msl: { LAND: .1, TUR: .3, CV: .5 }[type], armor: type === 'LAND' || type === 'CV' ? true : undefined,
+    score: { SAM: 800, AA: 700, RADAR: 600, TANK: 400, HANGAR: 900, DD: 1500, CG: 2500, LST: 1200, BB: 6000, CV: 7000, LAND: 12000, TUR: 1500, FACT: 1200, SLIGHT: 500, RUNWAY: 2500, PIPE: 3000, SATC: 0 }[type], cd: rand(4, 9), smokeT: 0, wreck: false, ship, aa: type === 'AA' };
   if (type === 'AA') g.type = 'SAM';
   if (type === 'FACT') g.stacks = mesh.userData.stacks;
   Object.assign(g, o); grounds.push(g); return g;
@@ -4612,7 +4616,38 @@ function campAlly(name, tail, x, y, z) {
   CAMP.allies.push(a); return a;
 }
 // ---- per-frame behaviours ----
+function hurtShip(sh, amt, stun) { if (!sh || !sh.alive) return; sh.hp -= amt; explode(_v6.set(sh.pos.x + rand(-25, 25), 14, sh.pos.z + rand(-25, 25)), amt > 60 ? 1.8 : .8, false); if (stun) sh.stunT = 6;
+  if (sh.hp <= 0) { destroy(sh, false); CAMP.f.lost = (CAMP.f.lost || 0) + 1; showMsg('SHIP LOST', WARN, 2, true); if (radioCooldown <= 0) { radio('NIGHTJAR', pick(['船団に被害！ 1隻やられた！', '護衛対象が沈んだ…！']), 2.8, true); radioCooldown = 5; } } }
+function nearestShip(e) { let T = null, bd = 1e12; for (const s of CAMP.f.ships) if (s.alive) { const d = s.pos.distanceToSquared(e.pos); if (d < bd) { bd = d; T = s; } } return T; }
+function gorsTick(e, dt) { // GORS' jet: afterburner bursts, flares, dodges, and an EMP pulse on anyone close
+  e.t = (e.t || 0) + dt; e.speed = Math.min(e.speed + 90 * dt, (e.t % 14) > 10.5 ? 480 : 345);
+  let thr = null; for (const m of missiles) if (m.owner === 'player' && m.target === e && m.pos.distanceTo(e.pos) < 1600) { thr = m; break; }
+  e.flareCd = (e.flareCd || 0) - dt; if (thr) { aiFlares(e, thr); if (!(e.jT > 0)) { e.jT = rand(1, 1.5); e.jS = Math.random() < .5 ? -1 : 1; } }
+  if (e.jT > 0) { e.jT -= dt; e.dir.applyAxisAngle(UP, e.jS * dt * 1.1); }
+  e.empCd = (e.empCd || 6) - dt; if (e.empCd <= 0 && player.alive && e.pos.distanceTo(player.pos) < 750) { e.empCd = 8; if ((player.ecmT || 0) > 0 || (player.stlT || 0) > 0) { showMsg('EMP JAMMED', HUDC, 1.6, true); } else { player.empT = 4; showMsg('EMP HIT', WARN, 2.2, true); sfxNoise(.7, 3200, .4, 'bandpass', 900, .8); fx.flash = Math.max(fx.flash, .35); } shockwave(e.pos, 400, .8, new THREE.Color(.5, 1.4, 3)); }
+  if (e.speed > 400) fire.emit(e.pos.x - e.dir.x * 10, e.pos.y - e.dir.y * 10, e.pos.z - e.dir.z * 10, 0, 0, 0, .25, 3, 6, 1, .75, .4, .9, .3, .1, 1, 1); }
 function campAI(e, dt) {
+  if (e.parked) { e.vel.set(0, 0, 0); e.mesh.position.copy(e.pos); _v3.copy(e.pos).add(e.dir); _m1.lookAt(e.pos, _v3, UP); e.mesh.quaternion.setFromRotationMatrix(_m1); return true; }
+  if (e.bm) { let T = e.rt; if (!T || !T.alive) { T = e.rt = nearestShip(e); if (!T) { e.alive = false; e.removed = true; scene.remove(e.mesh); return true; } }
+    _v1.subVectors(T.pos, e.pos); const d = _v1.length(); e.dir.lerp(_v1.divideScalar(d || 1), Math.min(1, dt * 1.6)).normalize(); e.speed = Math.min(e.speed + 500 * dt, 900);
+    e.vel.copy(e.dir).multiplyScalar(e.speed); e.pos.addScaledVector(e.vel, dt); e.mesh.position.copy(e.pos); e.mesh.quaternion.setFromUnitVectors(NEG_Z, e.dir);
+    e.trailT -= dt; if (e.trailT <= 0) { e.trailT = .02; _v3.copy(e.pos).addScaledVector(e.dir, -16); smoke.emit(_v3.x, _v3.y, _v3.z, rand(-2, 2), rand(0, 2), rand(-2, 2), 5, 5, 26, .97, .97, .98, .82, .83, .86, .6, .3); fire.emit(_v3.x, _v3.y, _v3.z, 0, 0, 0, .15, 5, 6, 1, .7, .3, .9, .3, .1, 1, 1); }
+    if (d < 90 || e.pos.y < 4) { hurtShip(T, 110, false); explode(e.pos, 2.4, true); shockwave(e.pos, 260, .8, new THREE.Color(1.8, 1.1, .5)); e.alive = false; e.removed = true; scene.remove(e.mesh); }
+    return true; }
+  if (e.raider) { const F = CAMP.f; let T = e.rt; if (!T || !T.alive) T = e.rt = nearestShip(e);
+    e.evT = (e.evT || 0) - dt; e.atkCd = (e.atkCd || 0) - dt; let thr = null;
+    for (const m of missiles) if (m.owner === 'player' && m.target === e && m.pos.distanceTo(e.pos) < 1500) { thr = m; break; }
+    e.flareCd = (e.flareCd || 0) - dt;
+    if (thr && !e.emp) { aiFlares(e, thr); if (e.evT <= 0) { e.evDir = _v1.crossVectors(thr.dir, UP).normalize().multiplyScalar(Math.random() < .5 ? -1 : 1).addScaledVector(UP, rand(-.4, .5)).normalize().clone(); e.evT = rand(1, 1.6); } }
+    const want = _v2; if (e.evT > 0 && e.evDir) want.copy(e.evDir); else if (T) want.set(T.pos.x - e.pos.x, T.pos.y + 130 - e.pos.y, T.pos.z - e.pos.z).normalize(); else want.copy(e.dir);
+    e.dir.lerp(want, Math.min(1, dt * (e.evT > 0 ? 2.2 : 1.1))).normalize(); e.speed += ((e.evT > 0 ? 330 : e.emp ? 300 : 250) - e.speed) * Math.min(1, dt * .8);
+    e.vel.copy(e.dir).multiplyScalar(e.speed); e.pos.addScaledVector(e.vel, dt); e.pos.y = Math.max(e.pos.y, floorAt(e.pos.x, e.pos.z) + 70);
+    _v3.copy(e.pos).add(e.dir); _m1.lookAt(e.pos, _v3, UP); e.mesh.quaternion.setFromRotationMatrix(_m1).multiply(_q1.setFromAxisAngle(AX_Z, Math.sin(missionTime * 1.3 + e.phase) * .35)); e.mesh.position.copy(e.pos);
+    e.trailT -= dt; if (e.trailT <= 0) { e.trailT = .06; _v3.copy(e.pos).addScaledVector(e.dir, -9); smoke.emit(_v3.x, _v3.y, _v3.z, 0, 0, 0, 2.2, 1.5, 5, .96, .97, .98, .9, .9, .92, .38, 0); }
+    if (T) { const hd = Math.hypot(T.pos.x - e.pos.x, T.pos.z - e.pos.z), dy = Math.abs(e.pos.y - T.pos.y);
+      if (e.emp) { if (hd < 130 && dy < 220) { hurtShip(T, 18, true); explode(e.pos, 1.3, false); shockwave(e.pos, 300, .6, new THREE.Color(.5, 1.4, 3)); e.alive = false; e.removed = true; scene.remove(e.mesh); } }
+      else if (hd < 650 && e.atkCd <= 0 && dy < 600) { e.atkCd = 5.5; hurtShip(T, 14, false); sfxNoise(.25, 1800, .2, 'bandpass', 500); } }
+    return true; }
   if (e.cruise) {
     const T = e.target; _v1.set(T.x - e.pos.x, 0, T.z - e.pos.z); const d = _v1.length();
     e.dir.lerp(_v1.normalize(), Math.min(1, dt * .5)).normalize(); e.dir.y = 0;
@@ -4625,6 +4660,7 @@ function campAI(e, dt) {
     return true;
   }
   if (e.flee) {
+    if (e.gors) gorsTick(e, dt);
     e.dir.lerp(e.flee, Math.min(1, dt * .4)).normalize(); e.dir.y = clamp((1600 - e.pos.y) / 4000, -.2, .2); e.dir.normalize();
     e.vel.copy(e.dir).multiplyScalar(e.speed); e.pos.addScaledVector(e.vel, dt);
     _v3.copy(e.pos).add(e.dir); _m1.lookAt(e.pos, _v3, UP); e.mesh.quaternion.setFromRotationMatrix(_m1).multiply(_q1.setFromAxisAngle(AX_Z, Math.sin(missionTime + e.phase) * .3)); e.mesh.position.copy(e.pos);
@@ -5110,13 +5146,75 @@ const XMISSIONS = [
       if (missionTime > 3 && !left) return campEnd(true);
     },
     win: [['NIGHTJAR', '燃料基地の炎上を確認。闇に乗じた、見事な夜襲だった。'], ['WREN', '真っ暗な空に、燃料の炎がきれいで…ちょっと怖かったよ。']] },
+  { id: 21, tag: 'E11', extra: true, title: '逃亡者ゴルス', en: 'Strike on Gors', map: 'nightisle', time: 480, supply: false,
+    story: 'ホルスト提督の拘束で、アウレアに潜んでいた裏切り者ゴルスが、ヴァルカへ逃げようとしている。夜陰に乗じて、ステルス機（SPECTRE）で潜伏島へ忍び寄れ。滑走路と格納庫（合計HP3000）を2分以内に壊せば、ゴルスの機体は飛べない。間に合わなければ飛び立たれる。マッハ1を超える機体を、島から出る前に撃墜しろ。',
+    facts: [['機体', 'このミッションはステルス機（SPECTRE）固定'], ['目的', '滑走路と格納庫を破壊 → ゴルスの機体（HP1000）を撃墜'], ['期限', '120秒以内に施設を破壊できないと、ゴルスが離陸して逃走する'], ['注意', '逃走機はフレア・EMP・ブースターを使い、攻撃はしてこない。マップ外に出られたら失敗'], ['ヒント', '施設にはUGBやロケット、ゴルス機には誘導ミサイルが効く。探照灯の光に入ると対空砲が起きる']],
+    start() {
+      const F = CAMP.f; F.dark = true; F.spot = 0; F.lights = []; F.fac = [];
+      CAMP.frSave = LO.frame; LO.frame = Math.max(0, PARTS.frame.findIndex(f => f.id === 'spectre')); player.maxHp = refreshLoadout(); player.hp = player.maxHp; rebuildPlayerMesh();
+      player.pos.set(0, 1600, 13800);
+      const c = campSpot({ x0: -1800, x1: 1800, z0: -2800, z1: -600, hMin: 18, hMax: 160 }); flattenPad(c[0], c[1], 0, c[2], -420, 420, -900, 900, 260);
+      F.fac.push(campGround('RUNWAY', c[0], c[1], c[2], { rot: 0 })); F.fac[0].hp = F.fac[0].maxHp = 1200;
+      [[-230, -300], [230, -100], [-230, 150], [230, 350]].forEach(([dx, dz]) => { const g = campGround('HANGAR', c[0] + dx, c[1] + dz, c[2], { rot: Math.PI / 2 }); g.hp = g.maxHp = 450; g.label = 'HANGAR'; F.fac.push(g); });
+      const pl = campAir('F', c[0], c[2] + 7, c[1] + 500, { hp: 1000, label: 'GORS', score: 8000, parked: true, speed: 0 }); pl.maxHp = 1000; pl.dir.set(0, 0, -1); pl.mesh.scale.setScalar(1.25); F.plane = pl; F.base = c;
+      const away = [c]; const put = (type, r, gap, n, cb) => { for (let i = 0; i < n; i++) { const sp = campSpot({ x0: c[0] - r, x1: c[0] + r, z0: c[1] - r * .8, z1: c[1] + r * .8, hMin: 8, hMax: 400, away, gap }); away.push(sp); cb && cb(campGround(type, sp[0], sp[1], sp[2])); } };
+      put('SLIGHT', 1500, 420, 3, g => { g.h = rand(0, 6.28); g.rate = rand(.18, .28) * (Math.random() < .5 ? -1 : 1); g.bm = makeBeam(new THREE.Color(1.2, 1.2, .95)); g.bg = makeBeam(new THREE.Color(.35, .35, .3)); CAMP.extras.push(g.bm, g.bg); g.tilt = rand(.9, 1.15); F.lights.push(g); });
+      put('SAM', 1700, 380, 3); put('AA', 1700, 380, 3);
+      campAlly('WREN', 0xe07a2a, 300, 1700, 13900); campAlly('LYNX', 0x2a2d33, -350, 1650, 14000); campAlly('ORCA', 0x2a2d33, 700, 1650, 14100);
+      radio('NIGHTJAR', 'こちらナイトジャー。ゴルスの機体は島の滑走路に係留中。120秒以内に滑走路と格納庫を叩けば、飛べない。'); radio('WREN', 'ステルス3機で夜の海を渡るよ。探照灯の光には入らないでね。', 4.5);
+    },
+    tick(dt) {
+      const F = CAMP.f, P = player, pl = F.plane; let facHp = 0, left = 0; for (const g of F.fac) if (g.alive) { facHp += Math.max(0, g.hp); left++; }
+      let seen = false;
+      for (const g of F.lights) { const on = g.alive; g.bm.visible = g.bg.visible = on; if (!on) continue; g.h += g.rate * dt; const el = g.tilt + Math.sin(missionTime * .35 + g.pos.x) * .25; _v2.set(g.pos.x, g.pos.y + 20, g.pos.z); _v1.set(Math.cos(g.h) * Math.cos(el), Math.sin(el), Math.sin(g.h) * Math.cos(el)); _v3.copy(_v2).addScaledVector(_v1, 5200); placeBeam(g.bm, _v2, _v3, 9); placeBeam(g.bg, _v2, _v3, 44);
+        if (P.alive && !(P.stlT > 0) && P.frame !== 'x') { _v4.subVectors(P.pos, _v2); const al = _v4.dot(_v1); if (al > 0 && al < 5200 && _v4.addScaledVector(_v1, -al).length() < 60 + al * .03) seen = true; } }
+      if (seen) { if (!(F.spot > 0)) { showMsg('SPOTTED', WARN, 2, true); sfxTone(900, 600, .5, .15, 'square'); } F.spot = 5; } else if (F.spot > 0) F.spot -= dt;
+      if (!F.took) {
+        if (!left && !F.grounded) { F.grounded = true; showMsg('RUNWAY DESTROYED', HUDC, 3, true); radio('NIGHTJAR', '施設の全滅を確認！ ゴルスは飛べない、機体を叩け！', 4, true); }
+        if (!F.grounded && missionTime >= 120) { F.took = true; pl.parked = false; pl.flee = new V3(rand(-.35, .35), 0, -1).normalize(); pl.dir.copy(pl.flee); pl.gors = true; pl.speed = 60; pl.noEvade = true; showMsg('TARGET AIRBORNE', WARN, 3, true); sfxTone(300, 120, .8, .2, 'sawtooth'); radio('NIGHTJAR', 'ゴルスが離陸した！ 逃がすな、追え！ マッハ1以上で逃げるぞ！', 4.5, true); radio('WREN', '速い…！ フレアにEMPまで積んでる！', 3.5); }
+        CAMP.obj = F.grounded ? 'ゴルスの機体を撃墜せよ（離陸不能）' : `滑走路と格納庫を破壊せよ  施設HP ${Math.round(facHp)}/3000  ·  離陸まで ${Math.max(0, Math.ceil(120 - missionTime))}s`;
+        CAMP.status = F.spot > 0 ? [`!! SPOTTED ${Math.ceil(F.spot)} !!`, true] : [F.grounded ? 'GORS GROUNDED' : `TAKEOFF ${Math.max(0, Math.ceil(120 - missionTime))}s`, !F.grounded && missionTime > 90]; }
+      else { const dEdge = Math.max(0, 17200 - Math.hypot(pl.pos.x, pl.pos.z)); CAMP.obj = `逃げるゴルスを撃墜せよ  マップ端まで ${Math.round(dEdge)}m`; CAMP.status = [`GORS ESCAPING  HP ${Math.max(0, Math.round(pl.hp))}`, true]; }
+      if (!pl.alive && missionTime > 3) return campEnd(true);
+      if (F.escaped) return campEnd(false, 'ゴルスの機体がマップ外へ逃げた');
+    },
+    win: [['NIGHTJAR', 'ゴルスの機体の撃墜を確認。裏切り者の逃亡は、ここで終わりだ。'], ['WREN', 'ステルス3機で、夜の島ごと決着だね。お疲れさま、ケストレル！']] },
+  { id: 22, tag: 'E12', extra: true, title: 'アウレア通商護衛', en: 'Convoy Escort', map: 'ocean', time: 540, supply: true,
+    story: '同盟国が食料と燃料を運ぶ大船団（14隻）を、アウレアの港まで護衛する。敵の狙いは君ではなく船団だ。第1波は戦闘機14機とEMP特攻機9機。第2波は戦闘機20機とEMP特攻機12機、さらに超高速の弾道ミサイル7発が降ってくる。護衛機は僚機レンだけ。1隻でも多く、港へ送り届けろ。',
+    facts: [['目的', '船団14隻を港まで護衛する'], ['敗北', '船が6隻未満になる・撃墜される・時間切れ'], ['ランク', 'S：全14隻無事 / A：12隻 / B：10隻 / C：8隻 / D：6隻'], ['敵', '敵は自機でなく船団を狙う。EMP機は体当たりで船を停止させ、弾道ミサイルは1発で大打撃']],
+    start() {
+      const F = CAMP.f; F.ships = []; F.wave = 0; F.arrived = false; F.lost = 0; F.harborZ = -7800;
+      player.pos.set(0, 2000, 11500);
+      const put = (type, dx, dz, hp) => { const g = campGround(type, dx, 4800 + dz, 0, { rot: 0 }); g.vel.set(0, 0, -34); g.friend = true; g.lineZ = 1e9; g.hp = g.maxHp = hp; g.guns = false; g.aa = false; g.label = type === 'LST' ? 'CONVOY' : g.label; F.ships.push(g); return g; };
+      const rows = [[-480, 'LST'], [0, 'LST'], [480, 'LST']]; let n = 0;
+      for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) { if (n >= 14) break; const type = (c === 1 && (r === 1 || r === 3)) ? 'CG' : (c !== 1 && r % 2 === 0) ? 'DD' : 'LST'; put(type, rows[c][0], r * 330, type === 'CG' ? 380 : type === 'DD' ? 260 : 220); n++; }
+      const hb = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: new THREE.Color(.4, 2, 1.2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); hb.scale.setScalar(900); hb.position.set(0, 60, F.harborZ - 600); scene.add(hb); CAMP.extras.push(hb);
+      campAlly('WREN', 0xe07a2a, 300, 1500, 11200);
+      F.spawnRaid = (nf, ne, nb) => { F.wave++; const sx = rand(-3000, 3000);
+        const mk = (emp, i) => { const e = campAir('F', sx + rand(-3500, 3500), rand(1500, 2800), -12500 - rand(0, 2500) - i * 40, { hp: emp ? 35 : 100, label: emp ? 'EMP' : 'RAIDER', score: emp ? 300 : 600, speed: 260 }); e.raider = true; e.emp = emp; e.dir.set(rand(-.2, .2), 0, 1).normalize(); e.state = 'patrol'; return e; };
+        for (let i = 0; i < nf; i++) mk(false, i); for (let i = 0; i < ne; i++) mk(true, i);
+        for (let i = 0; i < nb; i++) after(6 + i * 2.5, () => { const T = nearestShip({ pos: new V3(0, 0, 0) }) || F.ships[0]; const bm = { kind: 'air', bm: true, label: 'BALLISTIC', mesh: makeCruiseMesh(), pos: new V3((T ? T.pos.x : 0) + rand(-2500, 2500), 5200, (T ? T.pos.z : 0) - 9000), vel: new V3(), dir: new V3(0, -.35, 1).normalize(), speed: 500, hp: 40, maxHp: 40, alive: true, dead: false, deadT: 0, score: 1200, radius: 26, roll: 0, spin: 2, pyl: [9, 9, 9, 9], noEvade: true, trailT: 0, phase: rand(0, 6) }; bm.mesh.scale.setScalar(4); scene.add(bm.mesh); enemies.push(bm); if (i === 0) { showMsg('BALLISTIC MISSILES', WARN, 3, true); radio('NIGHTJAR', '弾道ミサイル発射！ 超高速だ！ 船団に落ちるぞ、撃ち落とせ！', 4, true); } });
+        showMsg(`WAVE ${F.wave}`, AMBER, 2.4, true); radio('NIGHTJAR', F.wave === 1 ? '敵の第1波！ 戦闘機14機とEMP特攻機9機、全部船団を狙っている！' : '第2波！ 戦闘機20機、EMP特攻機12機、それに弾道ミサイルだ！', 4.5, true); };
+      radio('NIGHTJAR', 'こちらナイトジャー。船団14隻を港まで護衛する。敵は君を無視して、船だけを狙ってくるぞ。'); radio('WREN', '護衛は私たち2機だけ…。ケストレル、1隻でも多く守ろう！', 4.5);
+    },
+    tick(dt) {
+      const F = CAMP.f, P = player, alive = F.ships.filter(s => s.alive).length, raid = enemies.filter(e => e.alive && !e.dead && (e.raider || e.bm)).length;
+      for (const s of F.ships) if (s.alive) { const lead = s.pos.z <= F.harborZ; s.vel.set(0, 0, (lead || s.stunT > 0) ? 0 : -34); if (s.stunT > 0) s.stunT -= dt; }
+      if (F.wave === 0 && missionTime > 12) F.spawnRaid(14, 9, 0);
+      if (F.wave === 1 && (missionTime > 95 || (missionTime > 50 && raid <= 3))) F.spawnRaid(20, 12, 7);
+      const stopped = F.ships.filter(s => s.alive && s.pos.z <= F.harborZ).length; if (!F.arrived && alive && stopped >= alive) { F.arrived = true; showMsg('CONVOY ARRIVED', HUDC, 3, true); }
+      CAMP.obj = F.arrived ? `港に到着！ 残る敵を一掃せよ  敵 ${raid}` : `船団を護衛せよ  船 ${alive}/14  ·  敵 ${raid}  ·  第${Math.max(1, F.wave)}波`; CAMP.status = [`SHIPS ${alive}/14  (LOST ${14 - alive})`, alive < 10];
+      if (alive < 6) return campEnd(false, '船団が壊滅した');
+      if (F.wave >= 2 && F.arrived && !raid) { const rk = alive >= 14 ? 'S' : alive >= 12 ? 'A' : alive >= 10 ? 'B' : alive >= 8 ? 'C' : 'D'; showMsg(`CONVOY RANK ${rk}  (${alive}/14)`, HUDC, 6, true); radio('NIGHTJAR', `船団 ${alive}隻が無事に入港。護衛ランク ${rk}。`, 5); return campEnd(true); }
+    },
+    win: [['NIGHTJAR', '敵の全滅を確認。船団は港に入った。食料と燃料は、ちゃんと届くぞ。'], ['WREN', '2機で守りきったね…！ ケストレル、さすが！']] },
 ];
 CMISSIONS.push(...XMISSIONS);
 function campEnd(win, reason) {
   if (missionResult) return;
   missionResult = win ? 'win' : 'fail'; endTimer = win ? 8 : 4;
   if (win) { showMsg('MISSION ACCOMPLISHED', HUDC, 7, true); (CAMP.m.win || []).forEach(([w, t]) => radio(w, t, 5)); const sv = campSave.get(); if (CAMP.m.extra) { sv.x = sv.x || {}; sv.x[CAMP.m.id] = 1; } else sv.cleared = Math.max(sv.cleared || 0, CAMP.m.id); campSave.set(sv);
-    if (achOn()) { if (!missionHurt) achUnlock('nohit'); if (!CAMP.m.extra && sv.cleared >= 10) achUnlock('camp10'); if (CAMP.m.extra && Object.keys(sv.x).length >= 10) achUnlock('extraAll'); } }
+    if (achOn()) { if (!missionHurt) achUnlock('nohit'); if (!CAMP.m.extra && sv.cleared >= 10) achUnlock('camp10'); if (CAMP.m.extra && Object.keys(sv.x).length >= 12) achUnlock('extraAll'); } }
   else { player.failReason = reason; showMsg('MISSION FAILED', WARN, 4, true); }
 }
 function campTick(dt) {
@@ -5125,6 +5223,7 @@ function campTick(dt) {
   if (!missionResult) CAMP.m.tick(dt);
 }
 function campClear() {
+  if (CAMP.frSave != null) { LO.frame = CAMP.frSave; CAMP.frSave = null; ST = stats(); rebuildPlayerMesh(); }
   if (CAMP.loSave != null) { LO.special = CAMP.loSave; CAMP.loSave = null; ST = stats(); rebuildPlayerMesh(); }
   SUPPLY.on = false; SUPPLY.site = null; SUPPLY.prog = 0; SUPPLY.cd = 0; SUPPLY.lowT = 0;
   TRC.list.length = 0; if (TRC.mesh) TRC.mesh.geometry.setDrawRange(0, 0);
@@ -5401,6 +5500,8 @@ BRIEF_LINES[17] = [['NIGHTJAR', 'ヴァルカが無人機を使い捨てで投�
 BRIEF_LINES[18] = [['NIGHTJAR', '特攻無人機にEMPが積まれている。接近を許せば、数秒間ロックも兵装も止まる。'], ['GRIFFON', 'ECM/JAMポッドを積んでおけ。発動中は、パルスを無効化できる。'], ['NIGHTJAR', '機銃は電子機器に頼らない。いざという時は、機銃で落とせ。']];
 BRIEF_LINES[19] = [['NIGHTJAR', '補給路を断たれた。使える弾は、ミサイル10発と機銃450発だけだ。'], ['WREN', '一発も無駄にできないね。ロックが完全に入るまで我慢しよう。'], ['NIGHTJAR', '補給は一切ない。弾が尽きたら…体当たりしかなくなる。']];
 BRIEF_LINES[20] = [['NIGHTJAR', '月夜の岬だ。燃料備蓄基地を叩く。だが、敵は探照灯の網を張っている。'], ['GRIFFON', '光の中に入ったら最後だ。対空砲が一斉に起きる。光の下を低くくぐるか、先に灯を潰せ。'], ['WREN', '見つからなければ、対空砲は寝てるままだよ。静かにね、ケストレル。']];
+BRIEF_LINES[21] = [['NIGHTJAR', 'ホルスト提督が拘束された。だが、内通者ゴルスがヴァルカへの逃亡を図っている。'], ['WREN', 'ステルス機で夜の島に忍び込むんだね。敵のレーダーには映りにくいよ。'], ['NIGHTJAR', '滑走路と格納庫のHPは合計3000。120秒以内に壊せ。間に合わなければ、マッハ以上で飛び去る。'], ['GRIFFON', '逃げる機体には、誘導ミサイルが効く。フレアとEMPに気をつけろ。']];
+BRIEF_LINES[22] = [['NIGHTJAR', '同盟国の大船団が、アウレアの港へ向かっている。食料と燃料を満載した14隻だ。'], ['WREN', '敵は私たちじゃなくて、船団を狙ってくるんだって。護衛は私たち2機だけ…。'], ['NIGHTJAR', '第1波は戦闘機14機とEMP機9機。第2波は20機と12機、さらに弾道ミサイル7発だ。'], ['NIGHTJAR', '6隻以上を守りきれ。全隻無事ならSランクだ。']];
 function startBrief(i) {
   startCampaign(i); const M = CAMP.m, P = player;
   BRF.save = { pos: P.pos.clone(), quat: P.quat.clone(), speed: P.speed };
